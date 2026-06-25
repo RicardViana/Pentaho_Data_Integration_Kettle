@@ -1,0 +1,10 @@
+# Ignorar ficheiro de senhas
+.env
+
+# Ignorar configurações pessoais do VS Code
+.vscode/
+*.code-workspace
+
+# Outros
+Seção*/
+*.lnk
