@@ -262,7 +262,7 @@ O motor do Pentaho pode se confundir sobre a ordem de execução (se ele selecio
 
 ![alt text](image-5.png)
 
-Com certeza! Este é mais um step fundamental para a sua apostila. O **Split fields** (Dividir campos) é o step perfeito para quando você recebe dados "espremidos" em uma única coluna e precisa separá-los em colunas diferentes.
+O **Split fields** (Dividir campos) é o step perfeito para quando você recebe dados "espremidos" em uma única coluna e precisa separá-los em colunas diferentes.
 
 No exemplo da sua imagem, você tem um campo chamado `id_pais` que provavelmente contém dados no formato `1,Brasil` ou `2,Argentina`. O objetivo do step é exatamente quebrar isso no meio e gerar duas colunas limpas: `id` e `pais`.
 
