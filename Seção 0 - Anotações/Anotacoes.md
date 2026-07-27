@@ -345,3 +345,94 @@ Existem duas formas principais de juntar textos no Pentaho: usando o **Concat fi
 
 * **Quando usar o Concat Fields?** Quando você tem um separador padrão entre todos os campos (ex: separar tudo por vírgula) ou quando quer juntar muitos campos de uma vez só. É mais visual e fácil de dar manutenção.
 * **Quando usar o Calculator?** Quando a junção for muito simples (apenas dois campos sem separador complexo) ou quando o volume de dados for absurdamente gigantesco, pois o motor do Calculator costuma ser levemente mais rápido em processamentos brutos de CPU.
+
+---
+
+# Sort Rows
+
+![alt text](image-7.png)
+
+O **Sort rows** (Ordenar linhas) é um dos steps mais importantes e, ao mesmo tempo, um dos mais "perigosos" para a performance do seu fluxo se não for bem compreendido.
+
+Para a sua apostila, a primeira coisa que você precisa anotar sobre ele é: **ele é um step bloqueador (blocking step)**. Isso significa que ele precisa esperar *todas* as linhas chegarem do step anterior, organizar tudo na memória, para só então começar a liberar os dados para o próximo step.
+
+Vamos destrinchar cada configuração da tela que você enviou:
+
+### 1. Configurações de Memória e Arquivos Temporários
+
+Como ordenar milhões de linhas exige muita memória RAM, o Pentaho possui um mecanismo inteligente de "transbordo" para o disco rígido caso a memória fique cheia.
+
+* **Nome do Step:** O nome do passo no seu fluxo (ex: `Ordenar por Data`).
+* **Sort directory:** O diretório (pasta) onde o Pentaho vai criar arquivos temporários caso precise escrever no disco. O padrão `%%java.io.tmpdir%%` aponta para a pasta de arquivos temporários do seu sistema operacional.
+* **TMP-file prefix:** O prefixo do nome desses arquivos temporários (o padrão é `out`, então os arquivos se chamarão algo como `out12345.tmp`).
+* **Sort size (rows in memory):** **[MUITO IMPORTANTE]** É o limite de linhas que o Pentaho vai segurar na memória RAM antes de começar a gravar no disco. O padrão é 1.000.000 (um milhão). Se as suas linhas tiverem muitas colunas de texto longo, um milhão pode estourar sua memória (gerando o famoso erro *Out of Memory*). Se isso acontecer, você deve **diminuir** esse valor (ex: para 100000).
+* **Free memory threshold (in %):** Uma alternativa ao campo de cima. Em vez de definir uma quantidade exata de linhas, você define um percentual mínimo de memória RAM livre. Se a memória livre do servidor cair abaixo desse percentual (ex: 20%), ele começa a gravar no disco.
+* **Compress TMP Files?:** Se marcado, o Pentaho vai compactar (zipar) os arquivos temporários no disco. Isso economiza espaço no HD, mas consome mais processador. Só use se o seu servidor tiver muito pouco espaço em disco.
+
+### 2. Comportamento Especial
+
+* **Only pass unique rows? (verifies keys only):** Se você marcar essa caixinha, o step passa a funcionar como um `SELECT DISTINCT` do SQL. Ele vai remover as linhas duplicadas, entregando apenas uma versão de cada. **Atenção:** ele considera como "duplicada" apenas as colunas que você listou na grade de ordenação abaixo, e não a linha inteira.
+
+### 3. Grade de Campos (Fields)
+
+É aqui que você define a regra da ordenação. Você pode adicionar várias colunas (ex: ordenar primeiro por `Estado` e depois por `Cidade`).
+
+* **Fieldname:** O nome da coluna que será usada para ordenar.
+* **Ascending:** `Y` (Sim) ordena de forma Crescente (A a Z, 0 a 9). `N` (Não) ordena de forma Decrescente (Z a A, 9 a 0).
+* **Case sensitive compare?:** Se `Y`, letras maiúsculas e minúsculas são tratadas de forma diferente na hora de organizar (ex: "Zebra" pode vir antes de "abacate"). Se `N`, ele ignora a diferença entre maiúsculas e minúsculas.
+* **Sort based on current locale?:** Se `Y`, ele usa as regras de idioma do seu sistema operacional. Isso é fundamental no Brasil para que palavras com acento (á, ç, ã) sejam ordenadas corretamente junto com as letras normais.
+* **Collator Strength:** Uma configuração avançada de idioma (Primária, Secundária, etc.) que define o quão rigorosa será a comparação de acentos e símbolos. Geralmente deixamos em branco para usar o padrão.
+* **Presorted?:** Se você sabe que os dados que estão chegando já estão parcialmente ordenados por essa coluna, você marca `Y`. Isso avisa o Pentaho para pular uma etapa de organização interna, deixando o processo um pouco mais rápido.
+
+---
+
+### ⚠️ Dicas de Ouro e Boas Práticas (Para a Apostila)
+
+1. **Sempre que possível, ordene no Banco de Dados:** Se a origem dos seus dados for um *Table Input* (banco de dados relacional), é **muito mais rápido e eficiente** colocar um `ORDER BY` na sua query SQL do que usar o step *Sort rows* no Pentaho. Use este step apenas quando os dados vierem de arquivos (Excel, CSV) ou quando você misturar dados de fontes diferentes.
+2. **Pré-requisito obrigatório:** No Pentaho, os steps **Merge Join** (Juntar fluxos) e **Group By** (Agrupar/Totalizar) exigem que os dados cheguem até eles previamente ordenados. Portanto, o *Sort rows* é o melhor amigo (e parceiro inseparável) desses dois steps! Utilizar o botão "Obtem campos" ajuda a preencher a grade rapidamente com as chaves necessárias.
+
+---
+
+# Group By
+
+![alt text](image-8.png)
+
+Para completar a dupla dinâmica com o *Sort rows*, temos o **Group by** (Agrupar por). Este é o step que você vai usar sempre que precisar fazer totalizações, como somar valores, contar registros, tirar médias ou achar o maior/menor valor de um conjunto de dados.
+
+Na sua apostila, **a regra mais importante deste step deve estar em negrito e com marca-texto:**
+**⚠️ O step "Group by" EXIGE que os dados cheguem até ele previamente ordenados pelos mesmos campos que você vai usar para agrupar.** Se os dados não passarem por um *Sort rows* (ou já virem ordenados do banco) antes de entrar aqui, os totais ficarão completamente errados.
+
+Vamos detalhar cada bloco da tela da sua imagem:
+
+### 1. Configurações Principais (Cabeçalho)
+
+* **Step name:** O nome da etapa (ex: `Group by`).
+* **Include all rows? (Incluir todas as linhas?):** Esta é uma opção fantástica. Normalmente, um agrupamento "esmaga" os dados (ex: 100 vendas de um órgão pagador viram apenas 1 linha com o total). Se você marcar esta caixa, o Pentaho **mantém as 100 linhas originais** e apenas adiciona uma nova coluna no final de cada uma delas contendo o valor total.
+* **Temporary files directory / TMP-file prefix:** Assim como no *Sort rows*, se você usar a opção acima ("Include all rows") com milhões de registros, o Pentaho pode precisar usar o disco rígido (arquivos temporários) para não estourar a memória RAM. O padrão é a pasta temp do sistema (`%%java.io.tmpdir%%`).
+* **Add line number, restart in each group:** Cria uma nova coluna contando as linhas (1, 2, 3...) e zera o contador toda vez que o grupo muda. *Só funciona se a opção "Include all rows" estiver marcada.*
+* **Line number field name:** Se você marcou a caixinha acima, aqui você digita o nome da coluna que vai receber essa contagem (ex: `ranking_venda`).
+* **Always give back a result row:** Se o step anterior não enviar nenhuma linha (fluxo vazio), o padrão do *Group by* é não gerar nada. Se você marcar isso, ele vai forçar a saída de pelo menos uma linha com valores nulos ou zerados. Útil para não quebrar lógicas de relatórios que esperam sempre receber algo.
+
+### 2. Grade Superior: The fields that make up the group (Chaves de Agrupamento)
+
+Equivale ao `GROUP BY` da linguagem SQL. É aqui que você define qual é o "nível" do seu resumo.
+
+* **Group field:** A coluna (ou colunas) que define o grupo. No seu exemplo, você escolheu `orgao_pagador`. Isso significa que o Pentaho vai gerar uma linha de totalizador para cada Órgão Pagador diferente que ele encontrar.
+* **Botão "Get Fields":** Puxa os campos do step anterior para facilitar o preenchimento.
+
+### 3. Grade Inferior: Aggregates (Agregações e Cálculos)
+
+Aqui é onde você define **o que** será calculado para cada grupo criado na grade superior.
+
+* **Name:** O nome da nova coluna que será criada com o resultado do cálculo. No seu print, você chamou de `Total`.
+* **Subject:** A coluna original que contém os dados que serão calculados. No seu caso, a coluna `valor`.
+* **Type:** O tipo de operação matemática ou lógica. No seu exemplo, é um `Sum` (Soma). Mas existem dezenas de opções aqui, sendo as mais comuns:
+* *Count all:* Conta quantas linhas existem no grupo.
+* *Average:* Tira a média.
+* *Minimum / Maximum:* Pega o menor ou maior valor do grupo.
+* *Concatenate strings separated by:* Junta textos de várias linhas em um só (ex: juntar o nome de todos os produtos vendidos separados por vírgula).
+
+* **Value:** Este campo só é habilitado para alguns `Types` específicos. Por exemplo, se você escolher "Concatenate strings separated by", é neste campo `Value` que você digita qual é o separador (uma vírgula `,`, um traço `-`, etc.). Para operações matemáticas como `Sum`, ele fica em branco.
+* **Botão "Get lookup fields":** Preenche automaticamente a grade com todos os campos numéricos que o Pentaho encontrar vindo do step anterior, sugerindo cálculos padrão.
+
+**Resumo prático do que o seu step está fazendo:** Ele está recebendo os dados (que devem estar ordenados por `orgao_pagador`), agrupando as linhas por Órgão Pagador e criando uma nova coluna chamada `Total`, que é a **soma** matemática da coluna `valor` referente àquele órgão.
