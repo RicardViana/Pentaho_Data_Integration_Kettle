@@ -527,3 +527,108 @@ Vamos detalhar cada campo da tela que você enviou para a sua apostila:
 1. **Cuidado com erros de digitação e Case Sensitive:** O Switch / case comum é extremamente sensível. Se você olhar o seu print, na linha 2 está escrito `Tool Desing` (com o N antes do G). Se no seu banco de dados a palavra vier escrita corretamente (`Tool Design`), o Pentaho não vai reconhecer a igualdade e essa linha vai acabar caindo no fluxo do `DemaisCargos` por engano! **Sempre copie e cole os valores exatos da fonte.**
 2. **Uso de Dummy Steps:** É uma excelente prática colocar steps **Dummy** logo após o *Switch / case* para receber os dados de cada rota. Exemplo: você liga o Switch no "Dummy - Produção", e só a partir desse Dummy você continua as transformações. Isso deixa o desenho do fluxo muito mais organizado e fácil de testar.
 3. **Não deixe o Default em branco:** Mesmo que você tenha mapeado todos os departamentos possíveis da sua empresa na grade, o mundo dos dados sempre traz surpresas (como valores nulos ou novas áreas criadas no sistema). Sempre preencha o *Default target step*, nem que seja apontando para um Dummy chamado `Lixo` ou `Erros_Nao_Mapeados`, para evitar que dados se percam silenciosamente.
+
+---
+
+# Filter rows
+
+![alt text](image-11.png)
+
+Excelente! O step **Filter rows** (Filtrar linhas) é um dos pilares de qualquer transformação no Pentaho. Se o *Switch / case* que vimos antes é um roteador para vários caminhos, o *Filter rows* é o clássico **"Bifurcador" (IF / ELSE)**.
+
+Ele avalia uma condição lógica (ex: `idade > 18`) e divide o fluxo em exatamente dois caminhos: o que é Verdadeiro (True) e o que é Falso (False). É o equivalente direto à cláusula `WHERE` do SQL.
+
+Vamos detalhar a interface que aparece no seu print para a sua apostila:
+
+### 1. Roteamento de Saída (Cabeçalho)
+
+* **Step name:** O nome da etapa (ex: `Filtrar Maiores de Idade`).
+* **Send 'true' data to step:** Para qual step a linha deve ir se ela **passar** na regra (condição verdadeira).
+* **Send 'false' data to step:** Para qual step a linha deve ir se ela **falhar** na regra (condição falsa).
+* *Observação:* Para que os nomes dos próximos steps apareçam nessas duas caixinhas, você precisa primeiro arrastá-los para a tela (canvas) e ligar o *Filter rows* a eles. Ao fazer a ligação, o Pentaho vai perguntar se a seta é para o caminho "True" (que ficará com um ícone verde) ou "False" (ícone vermelho).
+
+### 2. Construtor de Condições (The condition)
+
+Esta área central é totalmente interativa. Você não digita a regra diretamente; você **clica** nos elementos para configurá-los:
+
+* **`<field>` (Lado Esquerdo):** Ao clicar aqui, o Pentaho abre a lista de colunas que estão chegando do fluxo. Você escolhe qual campo quer testar (ex: `valor_venda`).
+* **`=` (Operador Central):** Ao clicar no sinal de igual, você pode mudar o tipo de comparação. As opções incluem:
+* `=`, `<>`, `<`, `>` (Igual, Diferente, Menor, Maior).
+* `IS NULL` / `IS NOT NULL` (Verifica se o campo está vazio ou preenchido).
+* `IN LIST` (Verifica se o valor está dentro de uma lista separada por ponto e vírgula, ex: `SP;RJ;MG`).
+* `CONTAINS` (Se um texto contém outro, similar ao `LIKE` do banco de dados).
+
+
+* **`<field>` ou `<value>` (Lado Direito):** Com o que você está comparando o lado esquerdo?
+* Se clicar em `<field>`, você pode comparar duas colunas da mesma linha (ex: `data_entrega > data_prevista`).
+* Se clicar em `<value>`, você digita um valor estático manual (ex: `1000`). Você precisará definir o tipo de dado (String, Number, etc.) nessa janelinha.
+
+
+* **Sinal de `+` (Canto Direito):** Serve para adicionar mais regras. Ao clicar nele, você pode criar lógicas complexas combinando **AND** (E) e **OR** (OU). *Exemplo: `valor_venda > 1000` AND `status = 'Aprovado'*`.
+* **Quadrado vazio (Canto Esquerdo):** Serve para aplicar a condição **NOT** (Não) na regra inteira, invertendo a lógica.
+
+---
+
+### ⚠️ Dicas de Ouro e Boas Práticas (Para a Apostila)
+
+1. **Filtre o mais cedo possível:** Para manter seu pipeline rápido, coloque o *Filter rows* o mais próximo possível da leitura do arquivo/banco de dados. Se você sabe que só precisa processar vendas de 2024, não faça cálculos complexos com todos os anos para só filtrar no final. Elimine o lixo logo na entrada! (Claro, se a origem for um banco de dados, o ideal é já trazer filtrado no `WHERE` da sua query SQL no *Table Input*).
+2. **O Destino do "False":** Se você só quer manter as linhas verdadeiras e descartar completamente as falsas, aponte o `Send 'false' data to step` para um step **Dummy**. Isso evita que o Pentaho acumule essas linhas na memória ou gere avisos no log de execução.
+3. **Cuidado com valores Nulos (Nulls):** Se você quer filtrar linhas onde a coluna de nome está vazia, **NUNCA** use a regra `<field> = <value> (vazio)`. Valores nulos em banco de dados e no Pentaho não são iguais a "nada", eles são "desconhecidos". Use sempre o operador **`IS NULL`**.
+
+---
+
+# If field value is null
+
+![alt text](image-12.png)
+
+Excelente adição! O step **If field value is null** (Se o valor do campo for nulo) é a ferramenta definitiva para tratar a ausência de dados no Pentaho. Ele é o equivalente direto às funções `IFNULL`, `NVL` ou `COALESCE` dos bancos de dados relacionais.
+
+Quando você extrai dados de sistemas diferentes, é muito comum que campos venham vazios (nulos). Inserir dados nulos em tabelas que não permitem isso (campos `NOT NULL`) causa erros fatais no fluxo. Este step resolve esse problema preenchendo os "buracos" com valores padrão definidos por você.
+
+A tela deste step é muito inteligente, pois permite tratar os nulos de três formas diferentes: **Global, por Tipo de Dado ou por Campo Específico**. Vamos detalhar cada bloco para a sua apostila:
+
+### 1. Bloco "Replace Null for all fields" (Substituição Global)
+
+Se você não marcar nenhuma caixinha extra, as configurações que você colocar aqui serão aplicadas a **todas as colunas** do seu fluxo que passarem por este step.
+
+* **Step name:** O nome da etapa (ex: `Tratar Nulos`).
+* **Replace by value:** O valor que vai entrar no lugar do nulo. (Ex: se você digitar `0`, todos os nulos do fluxo virarão zero).
+* **Set empty string?:** Se você marcar esta caixa, o Pentaho vai ignorar o que você digitou no campo acima e vai substituir todos os nulos por uma "String Vazia" (um texto sem nenhum caractere).
+* **Mask (Date):** Se a substituição global for afetar campos de data, você deve colocar a máscara aqui (ex: `yyyy-MM-dd`) para que o Pentaho consiga converter o seu texto padrão para uma data válida.
+
+### 2. Os Checkboxes de Direcionamento (Muito Importantes!)
+
+Para não aplicar uma regra cega em todas as colunas, o Pentaho oferece duas caixas de seleção que habilitam as grades inferiores da tela:
+
+* **Select fields (Selecionar campos):** Habilita a grade inferior ("Fields"). Use isso se você quiser tratar apenas colunas específicas pelo nome.
+* **Select value type (Selecionar tipo de valor):** Habilita a grade do meio ("Value types"). Use isso se você quiser tratar os nulos com base no tipo do dado, independentemente do nome da coluna.
+
+*Observação: Você pode marcar as duas caixas ao mesmo tempo. O Pentaho dará prioridade à regra do campo específico e, se não encontrar, aplicará a regra do tipo de dado.*
+
+### 3. Grade do Meio: Value types (Tratamento por Tipo)
+
+Esta é a opção favorita dos desenvolvedores para manter o fluxo limpo. Em vez de listar 50 colunas, você cria regras gerais.
+
+* **Type:** Você escolhe o tipo de dado (String, Integer, Number, Date, etc.).
+* **Replace by value / Set empty string?:** Define a regra para aquele tipo.
+* *Exemplo prático:* Você pode configurar para que **todo** campo do tipo *Integer* que for nulo vire `0`, e **todo** campo do tipo *String* que for nulo vire `N/A`.
+
+
+
+### 4. Grade Inferior: Fields (Tratamento por Coluna Específica)
+
+Esta é a abordagem cirúrgica. Se você habilitou o checkbox "Select fields", você listará aqui exatamente quais colunas quer tratar.
+
+* **Field:** O nome da coluna (ex: `data_cancelamento`). Você pode clicar no botão **Obtem campos** lá embaixo para carregar todos de uma vez e apagar os que não quer usar.
+* **Replace by value / Mask / Set empty string?:** As mesmas opções que já vimos, mas agora exclusivas para esta coluna.
+* *Exemplo prático:* Se a coluna `data_cancelamento` for nula, substitua pelo valor `2099-12-31` usando a máscara `yyyy-MM-dd`.
+
+
+
+---
+
+### ⚠️ Dicas de Ouro e Boas Práticas (Para a Apostila)
+
+1. **Respeite a Tipagem:** O maior erro de quem começa a usar este step é tentar colocar um texto como "Desconhecido" dentro de uma coluna que é do tipo Número Inteiro (*Integer*). O Pentaho vai gerar um erro de conversão de dados (Data Type Mismatch) e quebrar o fluxo. A regra é: substitua números por números, textos por textos e datas por datas.
+2. **Nulo é diferente de String Vazia:** Em banco de dados, `NULL` significa ausência de informação ("não sei o que tem aqui"). Uma `String Vazia` ("") significa que a informação existe, e a informação é "em branco". Marcar a opção **Set empty string?** ajuda muito quando o seu banco de dados recusa inserções de `NULL`, mas aceita campos de texto em branco.
+3. **Use a grade "Value types" para ganhar tempo:** Se você tem uma tabela com 100 colunas que permite tratar zeros em colunas numéricas nulas, não liste as 100 colunas na grade inferior. Basta colocar uma única linha na grade do meio dizendo: `Type: Number -> Replace by value: 0`. Isso deixa o seu step extremamente elegante e fácil de dar manutenção!
