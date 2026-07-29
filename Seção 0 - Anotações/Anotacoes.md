@@ -436,3 +436,94 @@ Aqui é onde você define **o que** será calculado para cada grupo criado na gr
 * **Botão "Get lookup fields":** Preenche automaticamente a grade com todos os campos numéricos que o Pentaho encontrar vindo do step anterior, sugerindo cálculos padrão.
 
 **Resumo prático do que o seu step está fazendo:** Ele está recebendo os dados (que devem estar ordenados por `orgao_pagador`), agrupando as linhas por Órgão Pagador e criando uma nova coluna chamada `Total`, que é a **soma** matemática da coluna `valor` referente àquele órgão.
+
+---
+
+# Value mapper
+
+![alt text](image-9.png)
+
+O step **Value mapper** (Mapeamento de Valores) é o famoso **"De -> Para"** do Pentaho.
+
+Ele é a alternativa visual (e muito mais fácil) para não precisar escrever longos comandos `CASE WHEN` ou vários `IF/ELSE`. O objetivo dele é olhar para o conteúdo de uma coluna e substituir valores específicos por outros.
+
+Um exemplo clássico: você recebe um arquivo onde o sexo dos clientes vem como "M" e "F", mas o seu banco de dados exige que seja salvo como "Masculino" e "Feminino". É exatamente isso que este step resolve!
+
+Vamos detalhar cada campo da tela da sua imagem:
+
+### 1. Configurações Principais (Cabeçalho)
+
+* **Step name:** O nome da etapa no seu fluxo (ex: `Mapear Status do Cliente`).
+* **Fieldname to use (Campo a ser usado):** É a coluna de origem. Qual é o campo que contém o dado que você quer avaliar e substituir? (Ex: a coluna `status_venda`).
+* **Target field name (empty=overwrite) / Nome do campo de destino:** Aqui você tem duas escolhas arquiteturais muito importantes:
+* *Se você preencher um nome aqui:* O Pentaho vai criar uma **nova coluna** com esse nome para guardar o valor transformado, mantendo a coluna original intacta.
+* *Se você deixar em branco (empty):* O Pentaho vai **sobrescrever** a coluna original. O valor antigo some e o novo toma o lugar na mesma coluna.
+
+* **Default upon non-matching (Padrão para não correspondência):** O que o Pentaho deve fazer se encontrar um valor que você não mapeou na grade abaixo? Se você deixar em branco, ele simplesmente mantém o valor original. Se você digitar algo aqui (ex: `Desconhecido` ou `Outros`), qualquer valor que não esteja na sua lista de regras receberá esse rótulo padrão.
+
+### 2. Grade de Valores (Field values)
+
+É aqui que você constrói o seu dicionário de tradução ("De -> Para").
+
+* **Source value (Valor de origem):** O dado exato que está chegando do step anterior (o "De"). Exemplo: `1`.
+* **Target value (Valor de destino):** O que esse dado deve virar (o "Para"). Exemplo: `Aprovado`.
+
+*Nota sobre o funcionamento:* Você vai adicionando linhas para cada possibilidade. Ex:
+
+* Linha 1: Source = `1` | Target = `Aprovado`
+* Linha 2: Source = `2` | Target = `Pendente`
+* Linha 3: Source = `3` | Target = `Cancelado`
+
+---
+
+### ⚠️ Dicas de Ouro e Boas Práticas (Para a Apostila)
+
+1. **Tipagem de Dados (Cuidado ao sobrescrever):** Se a sua coluna original for do tipo *Integer* (Número Inteiro) e contiver o número `1`, e você tentar sobrescrevê-la (deixando o *Target field* em branco) com a palavra `Aprovado` (String/Texto), o Pentaho vai dar um **erro de tipagem**. Só sobrescreva a coluna original se o novo valor for do mesmo tipo (texto substituindo texto). Se for mudar o tipo numérico para texto, obrigatoriamente preencha o *Target field name* para criar uma coluna nova.
+2. **Sensível a Maiúsculas e Minúsculas:** O *Value mapper* é "Case Sensitive". Ou seja, se você colocar que o Source value é `M` (maiúsculo), e no seu banco de dados chegar um `m` (minúsculo), ele não vai reconhecer e vai cair na regra do "Default". Sempre limpe e padronize seus textos (tudo maiúsculo, por exemplo, usando um *String operations*) antes de passá-los por este step.
+3. **Limite de Uso:** Este step é maravilhoso para listas pequenas e fixas (status, estados, categorias). Porém, se você tiver uma tabela "De-Para" com 500 produtos ou se as regras mudarem todos os meses, **não use o Value mapper**. Nesse cenário, a melhor prática é guardar essas regras em uma tabela no banco de dados e usar o step **Stream lookup** ou **Database lookup** para cruzar as informações dinamicamente.
+
+---
+
+# Switch / case
+
+![alt text](image-10.png)
+
+O step **Switch / case** é o grande "guarda de trânsito" do Pentaho. Ele é usado para **roteamento de dados**, ou seja, pegar um fluxo único de informações e dividi-lo em vários caminhos diferentes com base no valor de uma coluna.
+
+Enquanto o step *Filter Rows* (Filtrar Linhas) só permite dois caminhos (Verdadeiro ou Falso), o *Switch / case* permite criar 3, 5, 10 ou quantas rotas de saída você precisar, deixando seu fluxo muito mais limpo e organizado.
+
+Vamos detalhar cada campo da tela que você enviou para a sua apostila:
+
+### 1. Configurações Principais (Cabeçalho)
+
+* **Step name:** O nome da etapa (no seu caso, `Direcionamento de saidas`).
+* **Field name to switch:** O campo (coluna) que o Pentaho vai avaliar para decidir o caminho da linha. No seu exemplo, ele vai olhar para o que está escrito na coluna `departamento`.
+* **Use string contains comparison:**
+* *Desmarcado (Padrão):* O Pentaho exige que a palavra seja **exatamente igual**.
+* *Marcado:* O Pentaho vai procurar se a palavra *contém* o valor. Exemplo: se o valor procurado for "Prod", ele enviaria para o alvo qualquer linha que contivesse "Production", "Produto", "Sub-Prod", etc. (Funciona como um `LIKE` do banco de dados).
+
+
+* **Case value data type / mask / symbols:** Configurações de formatação. Geralmente usamos o *Switch / case* com textos (Strings), então deixamos o tipo como `None`. Mas, se você estiver roteando o fluxo com base em uma Data ou um Número Decimal, você pode usar esses campos para garantir que o Pentaho leia a máscara corretamente (ex: `yyyy-MM-dd`) antes de fazer a comparação.
+
+### 2. Grade de Roteamento (Case values)
+
+É aqui que você define as regras de "Se o valor for X, mande para o step Y".
+*Atenção: Para que os steps apareçam na lista suspensa do "Target step", você já deve ter arrastado esses steps para a tela do fluxo (canvas) e ligado o Switch / Case a eles.*
+
+* **Value:** O dado exato que você está esperando encontrar na coluna `departamento`.
+* **Target step:** Para qual step essa linha deve ser enviada se a condição for atendida.
+* *No seu exemplo:*
+* Se o departamento for `Production`, a linha vai para o step chamado `Produção`.
+* Se o departamento for `Tool Desing`, a linha vai para o step chamado `Design`.
+
+### 3. Caminho Padrão (Rodapé)
+
+* **Default target step:** Este é o famoso "Caminho do Resto" (ou o `ELSE` da programação). Se a linha avaliada tiver um departamento que **não está listado** na grade acima (por exemplo, "RH" ou "TI"), para onde ela deve ir? No seu caso, você direcionou tudo que não for Produção ou Design para o step `DemaisCargos`.
+
+---
+
+### ⚠️ Dicas de Ouro e Boas Práticas (Para a Apostila)
+
+1. **Cuidado com erros de digitação e Case Sensitive:** O Switch / case comum é extremamente sensível. Se você olhar o seu print, na linha 2 está escrito `Tool Desing` (com o N antes do G). Se no seu banco de dados a palavra vier escrita corretamente (`Tool Design`), o Pentaho não vai reconhecer a igualdade e essa linha vai acabar caindo no fluxo do `DemaisCargos` por engano! **Sempre copie e cole os valores exatos da fonte.**
+2. **Uso de Dummy Steps:** É uma excelente prática colocar steps **Dummy** logo após o *Switch / case* para receber os dados de cada rota. Exemplo: você liga o Switch no "Dummy - Produção", e só a partir desse Dummy você continua as transformações. Isso deixa o desenho do fluxo muito mais organizado e fácil de testar.
+3. **Não deixe o Default em branco:** Mesmo que você tenha mapeado todos os departamentos possíveis da sua empresa na grade, o mundo dos dados sempre traz surpresas (como valores nulos ou novas áreas criadas no sistema). Sempre preencha o *Default target step*, nem que seja apontando para um Dummy chamado `Lixo` ou `Erros_Nao_Mapeados`, para evitar que dados se percam silenciosamente.
