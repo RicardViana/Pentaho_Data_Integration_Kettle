@@ -613,8 +613,6 @@ Esta é a opção favorita dos desenvolvedores para manter o fluxo limpo. Em vez
 * **Replace by value / Set empty string?:** Define a regra para aquele tipo.
 * *Exemplo prático:* Você pode configurar para que **todo** campo do tipo *Integer* que for nulo vire `0`, e **todo** campo do tipo *String* que for nulo vire `N/A`.
 
-
-
 ### 4. Grade Inferior: Fields (Tratamento por Coluna Específica)
 
 Esta é a abordagem cirúrgica. Se você habilitou o checkbox "Select fields", você listará aqui exatamente quais colunas quer tratar.
@@ -624,6 +622,11 @@ Esta é a abordagem cirúrgica. Se você habilitou o checkbox "Select fields", v
 * *Exemplo prático:* Se a coluna `data_cancelamento` for nula, substitua pelo valor `2099-12-31` usando a máscara `yyyy-MM-dd`.
 
 
+* **Set empty string (Y) + Replace by value (Preenchido):** O Pentaho **ignora** o texto preenchido e força a String Vazia (`""`). O "Set empty string" sempre tem prioridade.
+* **Set empty string (N) + Replace by value (Preenchido):** O Pentaho troca o NULL pelo texto exato que você digitou (ex: "Desconhecido", "0", "N/A").
+* **Set empty string (N) + Replace by value (Em branco):** O Pentaho **não faz absolutamente nada**. O dado entra como `NULL` e sai como `NULL`.
+
+É por isso que esses dois campos trabalham sempre em dupla. Você escolhe se quer preencher o vazio com um conteúdo específico (Replace by value) ou se quer apenas criar a "caixa de papelão vazia" (Set empty string)!
 
 ---
 
