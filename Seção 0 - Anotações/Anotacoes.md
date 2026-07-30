@@ -635,3 +635,231 @@ Esta é a abordagem cirúrgica. Se você habilitou o checkbox "Select fields", v
 1. **Respeite a Tipagem:** O maior erro de quem começa a usar este step é tentar colocar um texto como "Desconhecido" dentro de uma coluna que é do tipo Número Inteiro (*Integer*). O Pentaho vai gerar um erro de conversão de dados (Data Type Mismatch) e quebrar o fluxo. A regra é: substitua números por números, textos por textos e datas por datas.
 2. **Nulo é diferente de String Vazia:** Em banco de dados, `NULL` significa ausência de informação ("não sei o que tem aqui"). Uma `String Vazia` ("") significa que a informação existe, e a informação é "em branco". Marcar a opção **Set empty string?** ajuda muito quando o seu banco de dados recusa inserções de `NULL`, mas aceita campos de texto em branco.
 3. **Use a grade "Value types" para ganhar tempo:** Se você tem uma tabela com 100 colunas que permite tratar zeros em colunas numéricas nulas, não liste as 100 colunas na grade inferior. Basta colocar uma única linha na grade do meio dizendo: `Type: Number -> Replace by value: 0`. Isso deixa o seu step extremamente elegante e fácil de dar manutenção!
+
+---
+
+# Java Filter
+
+![alt text](image-13.png)
+
+
+Excelente! Chegamos a um nível mais avançado com este. O **Java filter** (Filtro Java) é o "irmão mais velho e bombado" do step *Filter rows* que vimos anteriormente.
+
+Enquanto o *Filter rows* tem uma interface gráfica amigável de apontar e clicar, o **Java filter** exige que você escreva a regra de negócio digitando código diretamente na linguagem Java.
+
+**Por que usar isso se é mais difícil?** Pela **Performance e Flexibilidade**. Como o Pentaho é feito em Java, quando você escreve a regra nativamente aqui, ele não precisa "traduzir" a interface visual. O processamento se torna absurdamente rápido (ótimo para tabelas com dezenas de milhões de linhas) e você ganha acesso a todo o poder das fórmulas e bibliotecas da linguagem Java.
+
+Vamos detalhar a tela do seu print para a apostila:
+
+### 1. Configurações de Roteamento (Settings)
+
+Exatamente como no filtro padrão, este step divide o fluxo em dois caminhos. No seu print, você já configurou isso perfeitamente:
+
+* **Nome do Step:** O nome da etapa no fluxo (ex: `Java filter`).
+* **Destination step for matching rows:** Para qual step a linha vai se a condição Java retornar `True` (Verdadeiro). No seu caso, está apontado para um step chamado `Verdadeiro`.
+* **Destination step for non-matching rows:** Para qual step a linha vai se a condição retornar `False` (Falso). No seu caso, apontado para o step `Falso`.
+
+### 2. O Coração do Step (Condition)
+
+* **Condition (Java expression):** É aqui que você digita o seu código. No seu print, está escrito apenas a palavra `true`. Isso significa que, do jeito que está, **todas as linhas vão passar direto para o step "Verdadeiro"**, pois a condição é sempre absoluta.
+
+Para fazer isso funcionar na prática, você deve usar o **nome das colunas** que vêm do fluxo como se fossem variáveis no código, e a expressão final deve obrigatoriamente resultar em um booleano (`true` ou `false`).
+
+#### Exemplos práticos de uso (Para copiar e colar na apostila):
+
+* **Comparações Numéricas Simples:**
+`idade >= 18`
+* **Múltiplas Condições (Usando E/OU do Java):**
+`idade >= 18 && salario > 2000.0` (O `&&` significa AND).
+`status == 1 || status == 2` (O `||` significa OR).
+* **Tratando Textos (Strings) - ⚠️ MUITO IMPORTANTE:**
+Em Java, você **não pode** usar `==` para comparar textos. Você deve usar a função `.equals()`.
+*Certo:* `departamento.equals("Producao")`
+*Errado:* `departamento == "Producao"`
+* **Funções de Texto Avançadas:**
+`nome.startsWith("A")` (Deixa passar só quem tem o nome começando com a letra A).
+`cpf.length() == 11` (Verifica se o tamanho do texto tem exatos 11 caracteres).
+
+---
+
+### ⚠️ Dicas de Ouro e Boas Práticas (O Perigo dos Nulos)
+
+A maior causa de erros ao usar o **Java filter** é esquecer que o banco de dados pode mandar valores nulos (`NULL`).
+
+Se a coluna `departamento` chegar nula e o seu código for `departamento.equals("TI")`, o Java vai tentar executar a função `.equals()` em um "nada", o que vai gerar um erro fatal chamado **NullPointerException**, derrubando todo o seu fluxo.
+
+**A Regra de Ouro:** Sempre teste se o campo é nulo antes de fazer qualquer verificação de texto usando o operador `!= null` combinado com o `&&` (AND):
+
+> **Forma Segura e Profissional de Filtrar Textos:**
+> `departamento != null && departamento.equals("TI")`
+
+*(Dessa forma, se o departamento for nulo, a primeira parte da regra dá falso, o Java nem tenta ler a segunda parte, e a linha é enviada em segurança para o caminho "Falso" sem quebrar o Pentaho!)*
+
+### ⚠️ Bônus: Deixando o código "Blindado" (Null-Safe)
+
+Lembrando da regra de ouro sobre valores nulos que vai para a sua apostila: se, por acaso, vier uma linha no seu banco de dados onde a coluna `sexo` esteja em branco (`NULL`), a expressão `sexo.equals("F")` vai gerar um erro fatal (*NullPointerException*) e quebrar o seu Pentaho.
+
+Para evitar isso de forma elegante e profissional, inverta a ordem da comparação colocando o texto fixo na frente (uma técnica conhecida pelos programadores como *Yoda Condition*). O código perfeito e à prova de falhas fica assim:
+
+```java
+idade > 30 && "F".equals(sexo)
+
+```
+
+Dessa forma, o Java testa se a letra "F" é igual ao conteúdo da coluna `sexo`. Se a coluna for nula, ele simplesmente diz "Falso" e a linha vai pacificamente para o step "Falso", sem gerar nenhum erro! Faça essa alteração e teste novamente, vai funcionar de primeira.
+
+---
+
+# Replace in string
+
+![alt text](image-14.png)
+
+Com certeza! Mais um step clássico e indispensável para a sua apostila. O **Replace in string** (Substituir na String) é, de forma resumida, a função "Localizar e Substituir" (Ctrl+H) do Word ou Excel, mas com superpoderes para processar milhões de linhas.
+
+Ele é a ferramenta perfeita para **limpeza de dados**. Sabe quando você recebe um CPF cheio de pontos e traços (`123.456.789-00`) e precisa enviar para o banco de dados apenas os números (`12345678900`)? É este step que faz o trabalho sujo!
+
+Vamos detalhar cada coluna dessa grade para a sua documentação:
+
+### 1. Configurações de Origem e Destino
+
+* **Step name:** O nome da etapa (ex: `Limpar CPF e Telefone`).
+* **In stream field:** A coluna de origem. Qual é o campo que contém o texto que você quer alterar?
+* **Out stream field:** Aqui você tem a mesma escolha arquitetural do *Value mapper*:
+* *Se você preencher um nome aqui:* O Pentaho cria uma **nova coluna** com o texto alterado.
+* *Se você deixar em branco:* O Pentaho **sobrescreve** a coluna original, substituindo o texto antigo pelo novo.
+
+### 2. Regras de Busca e Substituição
+
+* **use RegEx:** Define como o Pentaho vai interpretar o campo "Search".
+* *N (Não):* Busca literal. Se você procurar por "A", ele acha exatamente a letra "A".
+* *Y (Sim):* Ativa as Expressões Regulares (RegEx). Permite buscas complexas. *Ex: `[0-9]` encontra qualquer número no texto.*
+
+* **Search:** O texto (ou padrão RegEx) que você está procurando e quer remover/alterar.
+* **Replace with:** O novo texto que vai entrar no lugar.
+* **Set empty string?:** Lembra da nossa regra da "caixa vazia"? Se você marcar `Y` aqui, o Pentaho ignora o campo "Replace with" e simplesmente **apaga** o termo pesquisado, deixando nada no lugar. *(Excelente para apagar os pontos e traços do CPF, por exemplo).*
+* **Replace with field:** Uma opção dinâmica incrível! Em vez de digitar um texto fixo no "Replace with", você pode selecionar outra coluna do seu fluxo para ser o valor substituto.
+
+### 3. Filtros de Precisão (Opções Avançadas)
+
+* **Whole Word:** Se `Y` (Sim), o Pentaho só substitui se encontrar a palavra inteira isolada.
+* *Exemplo:* Se você buscar por "sol" e trocar por "lua", a palavra "girassol" **não** vai virar "giraslua". Ele só troca se a palavra "sol" estiver sozinha.
+
+* **Case sensitive:** Se `Y` (Sim), ele diferencia maiúsculas de minúsculas. Buscar por "Rua" será diferente de buscar por "rua".
+* **Is Unicode:** Marque como `Y` apenas se você estiver tentando localizar e substituir caracteres especiais de Unicode (como símbolos específicos ou emojis que venham no texto). Para letras, números e pontuações normais, deixe em `N`.
+
+---
+
+### ⚠️ Dicas de Ouro e Boas Práticas (Para a Apostila)
+
+1. **Limpeza de CPF/CNPJ em um único passo:** Em vez de criar um step para tirar o ponto (`.`) e outro step para tirar o traço (`-`), você pode fazer tudo na mesma linha! Coloque `Y` no **use RegEx**, digite `[.-]` no campo **Search** e marque o **Set empty string?**. O Pentaho vai varrer o texto e apagar todos os pontos e traços de uma vez só!
+2. **Múltiplas substituições na mesma coluna:** Você pode adicionar várias linhas na grade apontando para o mesmo campo no **In stream field**. O Pentaho vai executá-las em ordem (de cima para baixo). *Exemplo: Linha 1 troca "R." por "Rua", Linha 2 troca "Av." por "Avenida" no mesmo campo de endereço.*
+3. **Só funciona com Textos (Strings):** Como o próprio nome diz, este step foi feito para manipular Strings. Não tente usá-lo para alterar números (Integer/Number) ou Datas, pois pode gerar erros de tipagem. Se precisar, converta os dados para texto antes (usando um *Select values*)!
+
+---
+
+# Strings cut
+
+![alt text](image-15.png)
+
+
+Excelente! O step **Strings cut** (Cortar Strings) tem uma interface bem enxuta, mas resolve problemas pontuais com muita eficiência.
+
+Na linguagem de banco de dados e programação, ele é o equivalente exato à função **`SUBSTRING`**. Ou seja, ele serve para extrair apenas um "pedaço" de um texto, baseando-se na **posição (número)** dos caracteres.
+
+Ele é diferente do *Split fields* (que usava um delimitador como vírgula ou traço). O *Strings cut* é cego para delimitadores; ele simplesmente conta caracteres e corta. É perfeito para arquivos de tamanho fixo (onde você sabe que os primeiros 4 caracteres são sempre o ano, por exemplo).
+
+Vamos detalhar a grade (The fields to cut) para a sua apostila:
+
+### 1. Configurações de Origem e Destino
+
+* **Step name:** O nome da etapa (ex: `Extrair DDD do Telefone`).
+* **In stream field:** A coluna de origem que contém o texto completo que será cortado.
+* **Out stream field:** A mesma regra de ouro dos steps de string anteriores:
+* *Se preencher um nome:* Cria uma **nova coluna** com o pedaço recortado.
+* *Se deixar em branco:* **Sobrescreve** a coluna original com o texto recortado, apagando o texto longo original.
+
+
+
+### 2. A Matemática do Corte (Atenção às posições!)
+
+Esta é a parte mais importante deste step. O Pentaho, sendo construído em Java, começa a contar os caracteres **a partir do ZERO** (e não do número 1).
+
+* **Cut from (Cortar de):** O índice (posição) onde o corte deve **começar**. Esta posição é *inclusiva* (o caractere desta posição fará parte do resultado).
+* **Cut to (Cortar até):** O índice (posição) onde o corte deve **parar**. Esta posição é *exclusiva* (o corte para *antes* deste caractere, ele não entra no resultado).
+
+#### 💡 Exemplos Práticos (Para anotar na apostila)
+
+Imagine que o texto na sua coluna seja a palavra **PENTAHO**.
+Na memória do computador, as posições são:
+
+* P = 0
+* E = 1
+* N = 2
+* T = 3
+* A = 4
+* H = 5
+* O = 6
+
+**Cenário A: Pegar os 3 primeiros caracteres ("PEN")**
+
+* **Cut from:** `0` (Começa no P)
+* **Cut to:** `3` (Para antes do T)
+
+**Cenário B: Pegar o final da palavra ("TAHO")**
+
+* **Cut from:** `3` (Começa no T)
+* **Cut to:** `7` (Você coloca o limite total do tamanho, mesmo o último índice sendo 6, para garantir que ele pegue até o fim).
+
+---
+
+### ⚠️ Dicas de Ouro e Boas Práticas (Para a Apostila)
+
+1. **Ideal para Padrões Fixos:** Este step brilha quando a informação tem sempre o mesmo tamanho. *Exemplos: Pegar os 2 primeiros números de um campo de CEP (`01153-000`) para descobrir a região, ou extrair o mês de uma data no formato texto (`20240729` -> Cut from 4, Cut to 6 = `07`).*
+2. **Fujam de Textos Variáveis:** Nunca use este step para tentar separar o Primeiro Nome do Sobrenome de uma pessoa. Como os nomes têm tamanhos diferentes (ex: "Ana" tem 3 letras, "Roberto" tem 7), cortar pelo número da posição vai quebrar seus dados. Para textos de tamanho variável, use o *Split fields* ou o *String operations* (que veremos mais para frente).
+3. **Use o botão Get fields:** Assim como nos outros steps, clicar em `Get fields` puxa todas as colunas de texto do fluxo para a grade automaticamente, poupando você de digitar os nomes. Depois, é só apagar as linhas que não vai usar.
+
+---
+
+# Calculator
+
+![alt text](image-16.png)
+
+Embora o nome sugira apenas matemática básica, este step é um verdadeiro "canivete suíço" ultrarrápido para operações matemáticas, manipulação de textos e, principalmente, **cálculos com datas**.
+
+Para a sua apostila, o ponto mais importante a destacar é a **performance**. A Calculadora do Pentaho usa algoritmos pré-compilados que rodam de forma absurdamente rápida. Sempre que você puder escolher entre fazer uma conta básica aqui ou usar um código complexo no step *Java / JavaScript*, escolha a Calculadora!
+
+Vamos destrinchar as colunas da grade (Campos) para a sua documentação:
+
+### 1. Definição do Cálculo e Operandos
+
+* **Novo campo (New field):** O nome da nova coluna que vai guardar o resultado da sua conta. Diferente de outros steps, a Calculadora **sempre cria colunas novas**, ela não sobrescreve a original.
+* **Cálculo (Calculation):** O coração do step. Ao clicar nesta célula, você verá uma lista gigante de operações prontas. As mais usadas são:
+* *Matemática:* `A + B`, `A - B`, `A * B`, `A / B`.
+* *Datas:* `Date A - Date B (in days)` (Diferença de dias entre duas datas), `Date A + B Days` (Soma dias a uma data).
+* *Textos:* `A + B` (Concatena textos), `Return only digits from string A` (Extrai só números de um texto, ótimo para CPFs).
+
+* **Campo A, Campo B e Campo C:** São as colunas de origem que servirão como as "peças" do seu cálculo.
+* Se a operação for `A + B`, você deve preencher o Campo A e o Campo B.
+* Se for uma operação simples como `Square of A` (Quadrado de A), você só preenche o Campo A.
+* O Campo C é raramente usado, apenas para cálculos muito específicos da lista, como `A + B * C`.
+
+### 2. Formatação do Resultado
+
+* **Tipo do valor (Value type):** Qual será o tipo de dado do resultado? (Number, Integer, String, Date). *Exemplo: se você dividiu dois números, o tipo deve ser Number para aceitar casas decimais.*
+* **Tamanho e Precisão:** Define o limite de caracteres e as casas decimais do resultado.
+* **Remove:** **[Opção Estratégica]** Se você marcar `Y` (Sim) aqui, o Pentaho faz a conta, mas deleta esse campo logo em seguida. *Para que serve isso?* É perfeito para criar "variáveis temporárias" (explicado nas dicas de ouro abaixo).
+* **Conversion mask, Decimal/Grouping/Currency symbol:** Opções padrão para formatar o resultado final, caso seja uma data ou um valor financeiro.
+
+*(Nota sobre o seu print: O checkbox "Throw an error on non existing files" que aparece ali no meio é um pequeno bug visual antigo da interface do PDI para traduções em português. Ele não tem função real na calculadora, então pode ignorá-lo!).*
+
+---
+
+### ⚠️ Dicas de Ouro e Boas Práticas (Anotações Críticas para a Apostila)
+
+1. **A "Pegadinha" das Constantes:** Este é o maior erro de quem começa a usar a Calculadora. **Ela só faz contas entre COLUNAS**. Você **não pode** digitar um número diretamente (como "A * 10"). Se você quiser multiplicar o salário por 10, você precisa usar um step anterior chamado **Add constants** (Adicionar constantes) para criar uma coluna fixa com o valor `10`, e só então usar essa nova coluna como o `Campo B` na Calculadora.
+2. **Cálculos em Cascata (Chaining):** A Calculadora resolve as contas linha por linha, de cima para baixo. Isso significa que você pode criar um "Novo campo" na Linha 1, e usar esse exato campo como "Campo A" na Linha 2!
+* *Exemplo:*
+* Linha 1: `subtotal = preco * quantidade`
+* Linha 2: `total_com_imposto = subtotal + taxa`
+
+3. **Use a opção "Remove" para manter o fluxo limpo:** No exemplo acima, se o seu banco de dados final só precisa da coluna `total_com_imposto`, você pode marcar a coluna `Remove` como `Y` na linha do `subtotal`. O Pentaho usará o subtotal para fazer a conta final e depois o jogará no lixo, evitando que colunas intermediárias poluam o seu dataset!
