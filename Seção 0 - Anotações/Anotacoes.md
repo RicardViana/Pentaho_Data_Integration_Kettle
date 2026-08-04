@@ -863,3 +863,47 @@ Vamos destrinchar as colunas da grade (Campos) para a sua documentação:
 * Linha 2: `total_com_imposto = subtotal + taxa`
 
 3. **Use a opção "Remove" para manter o fluxo limpo:** No exemplo acima, se o seu banco de dados final só precisa da coluna `total_com_imposto`, você pode marcar a coluna `Remove` como `Y` na linha do `subtotal`. O Pentaho usará o subtotal para fazer a conta final e depois o jogará no lixo, evitando que colunas intermediárias poluam o seu dataset!
+
+---
+
+# Formula 
+
+![alt text](image-17.png)
+
+Perfeito! O step **Formula** é o complemento natural para a *Calculadora* que acabamos de ver.
+
+Se a *Calculadora* é um "canivete suíço" focado em velocidade bruta, o step **Formula** é o **Excel dentro do Pentaho**. Ele usa uma biblioteca de funções (baseada no padrão OpenFormula) que é extremamente parecida com as fórmulas que usamos no Microsoft Excel ou Google Sheets.
+
+Para a sua apostila, o grande diferencial aqui é a **flexibilidade**: diferente da Calculadora, aqui você **pode** misturar colunas com números fixos (constantes) e pode criar lógicas condicionais (`SE` / `IF`) na mesma linha!
+
+Vamos destrinchar as colunas da grade que aparecem na sua imagem:
+
+### 1. Configurações da Expressão
+
+* **New field (Novo campo):** O nome da coluna que será criada para receber o resultado da fórmula.
+* **Formula (A Fórmula):** É aqui que a mágica acontece. Ao clicar nesta célula, o Pentaho abrirá um editor gigante com dezenas de categorias (Matemática, Texto, Data, Lógica).
+* *Dica Visual:* O editor tem uma interface muito amigável, listando todas as funções disponíveis à esquerda e mostrando exemplos de como usá-las à direita.
+
+
+* **Replace value (Substituir valor):** Se você quiser que o resultado da fórmula substitua os dados de uma coluna que já existe no seu fluxo (em vez de criar uma coluna nova), basta selecionar o nome da coluna antiga aqui. Se fizer isso, deixe o *New field* em branco.
+
+### 2. Formatação do Resultado
+
+* **Value type (Tipo do valor):** Essencial! Você precisa dizer ao Pentaho se o resultado final da sua fórmula será um Texto (String), um Número (Number/Integer), um Booleano (Boolean), etc.
+* **Length (Tamanho) / Precision (Precisão):** Define o limite de tamanho e casas decimais do resultado (muito importante para fórmulas matemáticas que geram dízimas).
+
+---
+
+### ⚠️ Dicas de Ouro e Boas Práticas (Para a Apostila)
+
+1. **A Sintaxe dos Campos (Colchetes):** Quando você for usar o nome de uma coluna dentro da sua fórmula, ela deve obrigatoriamente estar entre colchetes.
+* *Exemplo:* `[preco_venda] * 10`
+* *Exemplo de concatenação:* `[nome] & " " & [sobrenome]`
+
+
+2. **O Poder da Função IF (Condicional):** Esta é a principal razão pela qual usamos o step *Formula*. Ele permite criar lógicas na mesma linha, sem precisar usar o *Filter rows* ou *Switch case*.
+* *Exemplo prático:* `IF([salario] > 5000; "Alto"; "Normal")` -> O Pentaho avaliará a coluna salário e criará uma nova coluna com o texto "Alto" ou "Normal".
+
+
+3. **O Custo da Flexibilidade (Performance):** O step *Formula* é incrivelmente versátil, mas ele **é mais lento** que a *Calculadora* ou o *Java filter*. O motor do Pentaho precisa interpretar a fórmula linha por linha.
+* **A Regra de Ouro do Arquiteto de Dados:** Se for uma conta muito simples (como `A + B`) e sua tabela tiver 10 milhões de linhas, use a *Calculadora*. Use o *Formula* apenas quando precisar usar números fixos na conta (como `A * 0.15`) ou quando precisar criar regras com `IF / OR / AND`.
