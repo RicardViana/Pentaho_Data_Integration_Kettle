@@ -1147,3 +1147,137 @@ O step *Set variables* **só deve receber 1 única linha de dados**. Se você li
 Uma variável criada pelo step *Set variables* **não pode ser usada dentro da mesma transformação (arquivo .ktr) onde foi criada**.
 O Pentaho inicializa todas as variáveis da transformação no exato momento em que ela começa a rodar. Portanto, se você tentar criar a variável num step e usá-la no step seguinte do mesmo fluxo, ela aparecerá como vazia.
 *A Arquitetura Correta:* Você cria uma Transformação 1 apenas para ler o dado e usar o *Set variables*. Em seguida, no seu Job (`.kjb`), você chama a Transformação 2, que agora poderá consumir essa variável livremente!
+
+---
+
+# Row normaliser
+
+![alt text](image-24.png)
+
+Excelente adição para a documentação! Chegamos a um step verdadeiramente "transformador". O **Row normaliser** (Normalizador de Linhas) é, no mundo dos dados, o que chamamos de operação de **Un-Pivot**.
+
+Sabe quando você recebe aquela planilha do Excel formatada de forma horizontal para leitura humana (com uma coluna para cada mês: `Jan`, `Fev`, `Mar`) e precisa transformar isso em um formato verticalizado de banco de dados (criando apenas uma coluna chamada `Mês` e outra chamada `Valor`)? É exatamente isso que este step faz: **ele transforma colunas em linhas**.
+
+Vamos destrinchar a interface da sua imagem para a apostila:
+
+### 1. A Coluna de Classificação (Type field)
+
+* **Step name:** O nome da etapa (ex: `Normalizar Colunas de Meses`).
+* **Type field (Campo de Tipo):** Aqui você vai batizar uma **nova coluna** que o Pentaho vai criar. O papel dessa coluna é guardar o "rótulo" do dado que foi desdobrado.
+* *Exemplo:* Se você vai normalizar várias colunas de meses, o nome desse campo poderia ser `Mes_Referencia` ou `Categoria`.
+
+
+
+### 2. A Grade de Mapeamento (Fields)
+
+É aqui que você ensina ao Pentaho como desmontar as colunas antigas e montar as novas linhas.
+
+* **Fieldname (Nome do Campo):** A coluna horizontal original que está chegando do seu fluxo e que você deseja transformar em linha. (Use o botão **Get Fields** para trazer todas de uma vez e apague as que não vai normalizar). *Exemplo: `vendas_jan*`.
+* **Type (Tipo):** O texto fixo que será gravado dentro do seu **Type field** (configurado lá em cima) toda vez que o Pentaho processar essa coluna. *Exemplo: Para a coluna `vendas_jan`, você digita o texto `Janeiro` aqui.*
+* **new field (Novo Campo):** O nome da **nova coluna** que vai armazenar o valor (o conteúdo real) que estava dentro da coluna original. *Exemplo: `Valor_Vendido`.*
+
+---
+
+### 💡 Exemplo Visual (Para ilustrar na Apostila)
+
+Se a sua tabela original tem a seguinte linha:
+`| ID_Vendedor | vendas_jan | vendas_fev |`
+`| 105         | 5000       | 6000       |`
+
+Se você configurar o normalizador para transformar os meses, a saída será gerada em duas linhas verticais:
+`| ID_Vendedor | Mes_Referencia (Type field) | Valor_Vendido (new field) |`
+`| 105         | Janeiro (Type)              | 5000                      |`
+`| 105         | Fevereiro (Type)            | 6000                      |`
+
+---
+
+### ⚠️ Dicas de Ouro e Boas Práticas
+
+1. **A Multiplicação de Linhas:** Deixe um aviso claro na apostila de que este step **aumenta significativamente o volume de dados**. Se entram 1.000 linhas e você normaliza 12 colunas (de janeiro a dezembro), sairão 12.000 linhas do outro lado!
+2. **O Comportamento das Colunas "Esquecidas":** Qualquer coluna que chegar neste step e **não** for listada na grade "Fields" (como o `ID_Vendedor` no exemplo acima) será tratada como uma "chave". O Pentaho simplesmente a repetirá para cada nova linha desdobrada, mantendo a consistência dos dados.
+3. **Tipos de Dados Iguais:** As colunas originais que você vai colocar na aba *Fieldname* precisam ter o mesmo tipo de dado, pois elas vão desaguar na mesma coluna de destino (*new field*). Você não pode tentar normalizar uma coluna de Texto e uma coluna de Data para caírem no mesmo campo final, ou o fluxo dará erro.
+
+---
+
+Row denormaliser
+
+![alt text](image-25.png)
+
+Sensacional! Se no passo anterior nós vimos como transformar colunas em linhas (Un-Pivot), agora nós chegamos no **Row denormaliser** (Desnormalizador de Linhas), que faz exatamente o inverso: é a clássica operação de **Pivot**. Ele transforma linhas em colunas!
+
+Isso é extremamente útil quando o seu banco de dados traz as informações verticalizadas (ex: várias linhas para o mesmo produto, informando a quantidade de cada modelo), e você precisa transformar isso num relatório horizontal com uma coluna para cada modelo.
+
+Vamos detalhar cada bloco dessa tela perfeitamente ilustrada na sua imagem para a apostila:
+
+### 1. A Chave de Distribuição (Cabeçalho)
+
+* **Step name:** O nome da etapa (ex: `Pivotar Modelos por Produto`).
+* **The key field (O campo chave):** Qual é a coluna original que contém os "rótulos" que ditarão para qual nova coluna o dado vai? No seu print, é o `modelo`. É com base no conteúdo desta coluna que o Pentaho vai espalhar os valores para a direita.
+
+### 2. O Agrupamento (The fields that make up the grouping)
+
+Este bloco define o que constitui uma linha "única" na sua nova tabela resultante.
+
+* **Group field:** Aqui você lista as colunas que devem ser agrupadas. No seu caso, é o `produto`. Isso significa que, se houver 3 linhas originais para a "Camiseta X" (uma para cada modelo), o Pentaho vai condensar tudo em apenas **uma única linha** para a "Camiseta X", colocando as quantidades nas colunas correspondentes na frente dela.
+
+### 3. A Grade de Destino (Target fields)
+
+É aqui que você mapeia a criação das novas colunas e define de onde os valores virão.
+
+* **Target fieldname (Nome do campo de destino):** O nome da **nova coluna** que o Pentaho vai criar. No seu print, você está criando três colunas novas: `Qtd modeloA`, `Qtd modeloB` e `Qtd modeloC`.
+* **Value fieldname (Nome do campo de valor):** Qual é a coluna do fluxo original que contém o número ou texto que vai preencher essa nova coluna? *(Ex: Se você tem uma coluna original chamada `quantidade_estoque`, é ela que você digita aqui).*
+* **Key value (Valor da chave):** Qual é o texto exato dentro de `The key field` que funciona como gatilho? *(Ex: Se aqui você digitar `A`, toda vez que o Pentaho ler "A" na coluna `modelo`, ele pegará a quantidade e jogará dentro da coluna `Qtd modeloA`).*
+* **Type, Format, Length...:** As tipagens clássicas (Integer, String, Date) para garantir que a nova coluna seja criada no formato correto.
+* **Aggregation (Agregação):** Uma opção poderosíssima! Se o Pentaho encontrar *duas* linhas do "Produto X" que sejam do "Modelo A", o que ele deve fazer ao tentar espremer isso em uma única célula? Aqui você escolhe se ele deve Somar (Sum), tirar a Média (Average), pegar o Máximo/Mínimo, ou Concatenar os textos.
+
+---
+
+### ⚠️ Dicas de Ouro e Regras Fundamentais (Anotações Críticas para a Apostila)
+
+1. **A Regra Absoluta da Ordenação (Sort Rows):** Assim como outros steps de agrupamento no Pentaho, o *Row denormaliser* é "cego" se os dados não estiverem perfeitamente ordenados. **Você é obrigado a colocar um step `Sort rows` (Ordenar linhas) imediatamente antes dele**, ordenando exatamente pelas mesmas colunas que você colocou no bloco **Group field** (neste caso, a coluna `produto`). Se não fizer isso, o Pentaho vai gerar múltiplas linhas quebradas em vez de condensar tudo.
+2. **Use o "Get lookup fields":** Em vez de digitar os valores e nomes de destino um por um, se você conectar o fluxo e clicar neste botão, o Pentaho faz uma varredura nos dados que estão chegando e tenta preencher a grade de *Target fields* automaticamente para você, poupando muito trabalho manual em colunas que possuem dezenas de variações!
+
+---
+
+# Merge join
+
+![alt text](image-26.png)
+
+Chegamos a um dos steps mais vitais e utilizados em qualquer projeto de ETL! O **Merge join** é o equivalente visual perfeito aos famosos comandos de `JOIN` da linguagem SQL.
+
+Ele serve para cruzar dois fluxos de dados paralelos baseando-se em uma coluna em comum (por exemplo, cruzar uma tabela de *Vendas* com uma tabela de *Clientes* utilizando o `ID_Cliente` para descobrir o nome de quem comprou).
+
+Vamos destrinchar a interface da sua imagem para a apostila:
+
+### 1. Seleção das Origens e Tipo de Cruzamento (Cabeçalho)
+
+* **Step name:** O nome da etapa (ex: `Cruzar Vendas com Clientes`).
+* **First Step (Primeiro Passo):** Aqui você seleciona qual step do seu fluxo atuará como a "Tabela Esquerda" (Tabela A). O Pentaho vai ler os dados que estão saindo desse step selecionado.
+* **Second Step (Segundo Passo):** Aqui você seleciona qual step atuará como a "Tabela Direita" (Tabela B).
+* **Join Type (Tipo de Join):** A mágica acontece aqui. Ao clicar neste campo, você terá as 4 opções clássicas de modelagem relacional:
+* **INNER:** Retorna apenas as linhas onde a chave existe em **ambos** os fluxos (ex: apenas clientes que fizeram compras).
+* **LEFT OUTER:** Mantém **todas** as linhas do *First Step* (Esquerda) e traz os dados do *Second Step* apenas quando encontrar a chave correspondente. Se não encontrar, preenche os dados da direita com Nulo (`NULL`).
+* **RIGHT OUTER:** O inverso perfeito do Left (mantém tudo da tabela Direita).
+* **FULL OUTER:** Retorna absolutamente tudo de ambos os fluxos, cruzando os dados onde a chave for igual e colocando nulos onde não houver correspondência.
+
+
+
+### 2. Mapeamento das Chaves (Grades Inferiores)
+
+É aqui que você ensina ao Pentaho qual coluna de um lado conversa com a coluna do outro lado.
+
+* **Keys for 1st step (Chaves para o 1º passo):** Você digita (ou busca no botão) o nome da coluna no seu fluxo Esquerdo que servirá de ligação (ex: `cliente_id`).
+* **Keys for 2nd step (Chaves para o 2º passo):** Você informa a coluna correspondente no fluxo Direito. Note que os nomes das colunas **não precisam ser iguais** (ex: no fluxo direito, a coluna pode se chamar `id_do_cliente_sistema`), o importante é que o conteúdo interno represente a mesma coisa.
+* **Botões "Get key fields":** Assim como nos outros steps, clicar nestes botões preenche a grade automaticamente com os campos que estão chegando no fluxo. Lembre-se de apagar as colunas que não fazem parte do cruzamento (deixando apenas as chaves, como os IDs).
+
+---
+
+### ⚠️ Dicas de Ouro e Regras Inquebráveis (Para a Apostila)
+
+Esta é a seção mais importante deste step. Seus leitores precisam gravar isso:
+
+1. **A Regra Absoluta da Ordenação (Sort Rows):** O *Merge join* do Pentaho utiliza um algoritmo de comparação sequencial de altíssima velocidade. Por causa disso, ele é "cego" se os dados estiverem bagunçados. **Você é OBRIGADO a colocar um step `Sort rows` (Ordenar linhas) em ambos os fluxos imediatamente antes deles entrarem no *Merge join*.**
+* *Consequência:* Você deve ordenar as linhas utilizando exatamente a mesma coluna que vai usar como chave no join. Se você cruzar dois fluxos desordenados, o step não vai gerar um erro na tela, mas **o cruzamento falhará silenciosamente**, perdendo linhas e embaralhando os dados!
+
+
+2. **Conflito de Nomes de Colunas:** Se os fluxos A e B possuírem colunas com o mesmíssimo nome (por exemplo, ambos têm uma coluna chamada `data_atualizacao`), o Pentaho não vai quebrar. Para evitar que os dados se misturem, ele automaticamente renomeará a coluna que vier do *Second Step*, adicionando um sufixo (geralmente `_1`). Então o resultado final terá `data_atualizacao` (da esquerda) e `data_atualizacao_1` (da direita).
