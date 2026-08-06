@@ -907,3 +907,243 @@ Vamos destrinchar as colunas da grade que aparecem na sua imagem:
 
 3. **O Custo da Flexibilidade (Performance):** O step *Formula* é incrivelmente versátil, mas ele **é mais lento** que a *Calculadora* ou o *Java filter*. O motor do Pentaho precisa interpretar a fórmula linha por linha.
 * **A Regra de Ouro do Arquiteto de Dados:** Se for uma conta muito simples (como `A + B`) e sua tabela tiver 10 milhões de linhas, use a *Calculadora*. Use o *Formula* apenas quando precisar usar números fixos na conta (como `A * 0.15`) ou quando precisar criar regras com `IF / OR / AND`.
+
+---
+
+# Table input
+
+![alt text](image-18.png)
+
+Chegamos a um dos pesos-pesados do Pentaho! O **Table input** (Entrada de Tabela) é, sem dúvida, o step mais utilizado quando precisamos extrair dados de Bancos de Dados Relacionais (MySQL, PostgreSQL, Oracle, SQL Server, etc.).
+
+O seu print está excelente para a apostila, pois ele mostra não apenas uma leitura simples, mas uma **leitura parametrizada** (dinâmica), que é um conceito avançado!
+
+Vamos destrinchar cada bloco dessa tela para o seu material:
+
+### 1. Conexão e Construção da Query (Cabeçalho)
+
+* **Nome do Step:** O nome da etapa (ex: `Leitura de Tabela`).
+* **Connection (Conexão):** É aqui que você escolhe em qual banco de dados o Pentaho vai bater. Essa conexão (no seu caso, `conn_estudo`) deve ser configurada previamente com os dados de servidor, usuário e senha.
+* **Botão "Get SQL select statement...":** Um atalho maravilhoso. Ao clicar nele, o Pentaho abre a árvore do seu banco de dados, você escolhe uma tabela e ele digita automaticamente o `SELECT` de todas as colunas para você, economizando tempo de digitação.
+* **Editor SQL:** A área em branco gigante onde você digita a sua consulta. **Importante:** A linguagem usada aqui não é "código Pentaho", é o SQL nativo do banco de dados que você selecionou na conexão.
+
+### 2. Leitura Dinâmica e Parâmetros (O Segredo do seu Print)
+
+Se você reparar no seu SQL, a última linha é `WHERE datanascimento > ?`. Aquele ponto de interrogação (`?`) é o grande diferencial deste step. Ele significa que a query está aguardando um valor que virá de fora.
+
+* **Insert data from step (Inserir dados do passo):** Aqui você diz de onde vem a informação para substituir o `?`. No seu caso, o step selecionado é o `Data grid`. Ou seja, o Pentaho vai ler a data que está saindo do Data grid, vai injetar no lugar do `?` e só então vai executar a query no banco.
+* *Nota:* Se houver mais de um `?` no seu SQL, o Pentaho os substituirá na exata ordem das colunas que chegarem do step anterior (Coluna 1 no primeiro `?`, Coluna 2 no segundo, etc.).
+
+
+* **Executar para cada linha? (Execute for each row):**
+* *Desmarcado (Padrão):* Lê apenas a primeira linha que chegar do step anterior, injeta no `?` e executa a query uma única vez.
+* *Marcado:* Se o step `Data grid` enviar 10 datas diferentes, o Pentaho vai executar a query de `SELECT` 10 vezes no banco de dados, uma vez para cada data.
+
+
+
+### 3. Variáveis e Otimização de Performance
+
+* **Replace variables in script? (Substituir variáveis no script?):** Como está marcado no seu print, isso permite que você use Variáveis de Ambiente do Pentaho (no formato `${NOME_DA_VARIAVEL}`) dentro do seu SQL. O Pentaho vai trocar esse texto pelo valor real da variável antes de mandar para o banco de dados.
+* **Enable lazy conversion (Habilitar conversão preguiçosa):** Assim como vimos na leitura de CSV, se marcado, o Pentaho não perde tempo convertendo os dados do banco para os tipos nativos do Java imediatamente. Ele passa os dados no formato bruto "string/binário" para ganhar velocidade.
+* **Store column info in step meta data:** Otimiza o uso de memória armazenando os metadados das colunas de forma global, em vez de replicar essa informação para cada linha extraída. Ideal para tabelas com dezenas de milhões de registros.
+* **Tamanho limite (Limit size):** É o equivalente ao comando `LIMIT` no SQL. Se você colocar `100` aqui, o step só vai extrair as 100 primeiras linhas, ignorando o resto. Deixar `0` significa "traga tudo".
+
+---
+
+### ⚠️ Dicas de Ouro e Boas Práticas (Para a Apostila)
+
+1. **Filtre na Origem (O Segredo da Performance):** Nunca faça um `SELECT * FROM tabela` gigante para depois usar o step *Filter rows* no Pentaho. Bancos de dados são infinitamente mais rápidos para filtrar informações. Use e abuse da cláusula `WHERE` diretamente dentro do *Table input* para trazer apenas o que realmente importa para a memória.
+2. **A Diferença entre Parâmetro (`?`) e Variável (`${VAR}`):**
+* Use o **`?` (Insert data from step)** quando o valor do filtro for dinâmico e gerado *dentro* do próprio fluxo (ex: ler a data da última carga de uma tabela de log para filtrar os dados novos).
+* Use a **`${VARIAVEL}`** quando o valor for fixo para toda a execução e vier "de fora" do fluxo (ex: passar o mês de referência de um relatório através de um Job superior).
+
+
+
+Sua documentação está ficando incrível e com um nível técnico altíssimo! Você quer que o próximo step a ser detalhado seja o **Table Output** (para fechar o ciclo de banco de dados) ou tem algum outro de transformação na fila?
+
+
+![alt text](image-20.png)
+
+![alt text](image-21.png)
+
+Com certeza! Este é um dos conceitos mais divisores de águas no aprendizado do Pentaho. Entender a diferença e a relação entre **Parâmetros** e **Variáveis** é o que transforma um fluxo "engessado" (hardcoded) em um pipeline dinâmico e profissional, capaz de rodar para diferentes dias, clientes ou ambientes sem que você precise alterar o código.
+
+Os dois prints que você enviou ilustram perfeitamente o ciclo de vida completo dessa automação. Vamos destrinchar isso para a sua apostila!
+
+---
+
+### 1. Parâmetros (A Porta de Entrada) - *Referente à image_ee9336.png*
+
+Pense nos **Parâmetros** como as "perguntas" que a sua Transformação (ou Job) faz antes de começar a rodar. É um contrato formal.
+
+* **O que são:** São valores externos que você exige que sejam informados na hora de dar o "Play" (seja rodando manualmente, via prompt de comando ou agendado no servidor).
+* **Onde ficam:** Como mostra o seu print, eles são definidos nas **Propriedades da Transformação** (atalho `Ctrl + T` duplo clique no espaço vazio do canvas), na aba *Parâmetros*.
+* **O que acontece no seu print:** Você declarou que a transformação precisa de uma informação chamada `Date_Teste`. O campo **Valor padrão (Default value)** foi preenchido com `28/05/1956`. Isso significa que, se quem for executar a transformação não informar nenhuma data, o Pentaho assumirá esse valor de 1956 para não quebrar o fluxo.
+
+### 2. Variáveis (A Memória Interna) - *Referente à image_ee9356.png*
+
+Enquanto os parâmetros são definidos *antes* da execução, as **Variáveis** são os valores que vivem na memória do Pentaho *durante* a execução.
+
+* **A Regra de Ouro da Relação:** **Todo parâmetro se transforma automaticamente em uma variável assim que o fluxo começa a rodar.**
+* **A Sintaxe:** Para "chamar" o valor de uma variável em qualquer step do Pentaho (que suporte essa função), você deve usar o cifrão e chaves: **`${Nome_da_Variavel}`**.
+* **O que acontece no seu print:** No step *Table input*, você escreveu na cláusula WHERE: `datanascimento > ${Date_Teste}`.
+Para que a mágica aconteça, a caixinha **"Replace variables in script?"** precisa estar marcada (e no seu caso, felizmente está!).
+* *Como o Pentaho processa isso:* Antes de enviar o SQL para o banco de dados, o Pentaho faz um "Localizar e Substituir" no texto. Ele vê o `${Date_Teste}`, lembra que isso veio do parâmetro, pega o valor `28/05/1956` e reescreve a query em tempo real.
+
+
+
+---
+
+### Resumo das Diferenças para a Apostila 📝
+
+| Característica | Parâmetros (Parameters) | Variáveis (Variables) |
+| --- | --- | --- |
+| **Definição** | Argumentos solicitados ANTES da execução começar. | Valores armazenados na memória DURANTE a execução. |
+| **Criação** | Declarados manualmente nas Propriedades da Transformação. | Geradas a partir de parâmetros, geradas pelo sistema (ex: `${Internal.Job.Filename.Directory}`) ou criadas via step *Set Variables*. |
+| **Escopo (Onde existem)** | Restritos à Transformação ou Job onde foram declarados. | Podem ser globais (Root), válidas para todo o ambiente da máquina (System), ou passadas de um Job pai para os filhos. |
+| **Sintaxe de Uso** | Não se usa a sintaxe no parâmetro em si. | Usa-se sempre o formato `${Nome}` ou `%%Nome%%`. |
+
+---
+
+### ⚠️ Alerta Crítico de Banco de Dados (Dica Avançada)
+
+No seu step *Table input*, o SQL final que será enviado ao banco de dados ficará exatamente assim:
+`WHERE datanascimento > 28/05/1956`
+
+Dependendo do banco de dados (como PostgreSQL ou MySQL), **isso vai gerar um erro de sintaxe**. O banco vai achar que você está mandando ele fazer uma conta matemática (28 dividido por 05 dividido por 1956).
+
+Como o recurso de Variáveis do Pentaho faz apenas uma **substituição de texto bruto**, se o seu banco de dados exige que datas fiquem entre aspas simples, você precisa colocar as aspas no seu SQL, abraçando a variável!
+
+**Correção recomendada no seu SQL:**
+`WHERE datanascimento > '${Date_Teste}'`
+*(Com as aspas simples, o banco lerá `> '28/05/1956'` e entenderá que é uma data/string).*
+
+Essa é uma pergunta de arquiteto de dados! **Sim, com certeza você consegue**, e essa é exatamente a técnica usada para criar pipelines de dados dinâmicos e profissionais em ambientes corporativos.
+
+Na sua apostila, você pode batizar esse tópico como **"A Hierarquia Pai e Filho (Orquestração)"**.
+
+Aqui está como e por que passamos variáveis para parâmetros:
+
+### O Cenário Prático (Por que fazer isso?)
+
+Imagine que você tem uma Transformação (o seu arquivo `.ktr` com o *Table input*) que extrai vendas de um dia específico usando o parâmetro `Date_Teste`.
+Se você tiver que abrir esse arquivo todo dia e digitar o valor padrão na mão, não há automação real. O ideal é que um **Job Pai** (o maestro do Pentaho, arquivo `.kjb`) descubra que dia é hoje, guarde isso em uma Variável, e injete essa Variável dentro do Parâmetro da sua Transformação.
+
+### Como fazer isso no Pentaho?
+
+Isso não é feito dentro da Transformação em si, mas sim no **Job** (ou Transformação Pai) que vai acionar o seu arquivo.
+
+1. Dentro de um Job, você arrasta o step **Transformation** (o ícone que executa arquivos `.ktr`).
+2. Você dá um duplo clique nele para apontar onde está o seu arquivo `.ktr` (ex: `extrair_empregados.ktr`).
+3. Nesta mesma tela, você vai até a aba **Parameters (Parâmetros)**.
+4. O Pentaho vai listar automaticamente os parâmetros que a sua transformação exige (no seu caso, `Date_Teste`).
+5. Na coluna ao lado ("Stream column name" ou "Value"), você digita a sua variável com a sintaxe do cifrão: **`${DATA_HOJE}`**.
+
+### O Fluxo da Mágica (Passo a Passo)
+
+Quando o servidor der o "Play" no seu Job Pai, a seguinte sequência de eventos acontece em milissegundos:
+
+1. **O Job Pai acorda:** Ele pega a data do sistema operacional e guarda na variável `${DATA_HOJE}` (ex: `29/07/2026`).
+2. **O Repasse:** O Job Pai chama a sua Transformação e diz: *"Ei, você precisa de um parâmetro chamado `Date_Teste`, certo? Toma aqui o valor da minha variável `${DATA_HOJE}`"*.
+3. **A Execução (Seu Print):** A sua Transformação recebe o valor `29/07/2026`, substitui aquele `${Date_Teste}` que estava no *Table input*, vai até o banco de dados e traz os registros corretos!
+
+---
+
+### ⚠️ Dica de Ouro Arquitetural (Para a Apostila)
+
+**Por que não usar a variável global `${DATA_HOJE}` direto no *Table input* da Transformação e pular a etapa do parâmetro?**
+
+Porque usar **Parâmetros** mantém a sua transformação independente e reutilizável (desacoplada).
+Se você fixar o nome de uma variável global no seu `SELECT`, aquela transformação só funcionará se aquela variável específica existir.
+Usando um parâmetro como "porta de entrada", qualquer Job Pai pode usar a sua transformação. Um Job pode passar a `${DATA_HOJE}`, outro Job pode passar um `${MES_PASSADO}` e um terceiro Job pode ler uma tabela de Excel e rodar a sua transformação passando as datas de um loop, sem que você precise alterar uma única linha do seu SQL original!
+
+---
+
+# Transformation Executor 
+
+![alt text](image-22.png)
+
+Excelente! Agora estamos entrando no território da arquitetura avançada de dados. Este step ilustra perfeitamente na prática aquele conceito de "Hierarquia Pai e Filho" que acabamos de discutir!
+
+O step **Transformation executor** (Executor de Transformação) permite que você rode uma Transformação (um arquivo `.ktr` filho) *por dentro* de outra Transformação (o arquivo `.ktr` pai).
+
+O grande superpoder deste step é que ele funciona como um **Loop (For Each)** da programação. Se o fluxo anterior enviar 50 linhas para este step, ele vai executar a transformação filha 50 vezes, passando os dados de cada linha como parâmetros!
+
+Vamos detalhar a aba principal do seu print para a apostila:
+
+### 1. Configuração Básica (Cabeçalho)
+
+* **Step Name:** O nome do passo no seu fluxo (ex: `Executar Carga por Filial`).
+* **Transformation:** O caminho do arquivo `.ktr` (Transformação filha) que será chamado e executado. Você usa o botão `Browse...` para localizar o arquivo no seu computador ou repositório.
+
+### 2. Aba "Parameters" (A Passagem de Bastão)
+
+É nesta aba que ocorre a mágica de injetar as variáveis nos parâmetros que explicamos na resposta anterior.
+
+* **Botão "Get Parameters":** Ao clicar aqui (após ter selecionado o arquivo no campo `Transformation`), o Pentaho lê o arquivo filho e preenche a coluna "Variable / Parameter name" automaticamente com todos os parâmetros que o filho está esperando receber (ex: o seu `Date_Teste`).
+* **Variable / Parameter name:** O nome do parâmetro esperado pela transformação filha.
+* **Variable / Parameter to use:** De onde o valor vai sair. Aqui você pode selecionar uma das **colunas** do seu fluxo atual. Se você tiver uma coluna chamada `data_venda`, para cada linha do fluxo, o Pentaho pegará o valor dessa coluna e passará para o parâmetro do filho.
+* **Static input value:** Se você não quiser passar uma coluna dinâmica, você pode digitar um valor fixo (estático) aqui. O valor digitado será sempre passado para o filho.
+* **Inherit all variables from transformation (Herdar todas as variáveis):** Uma excelente caixa de seleção. Se marcada, todas as variáveis que já existem na memória da Transformação Pai são copiadas automaticamente para a Transformação Filha, sem que você precise mapeá-las uma a uma na grade.
+
+---
+
+### Resumo das Outras Abas (Para a sua Apostila ficar completa)
+
+Como este é um step de orquestração complexo, ele possui outras abas vitais:
+
+* **Row grouping (Agrupamento de linhas):** Define como as linhas serão passadas para o filho. Você pode mandar o Pentaho executar o filho linha por linha, ou agrupar em lotes (ex: enviar de 100 em 100 linhas).
+* **Execution results (Resultados da execução):** Permite criar campos no seu fluxo pai para saber se o filho rodou com sucesso, quanto tempo demorou e quantas linhas leu/escreveu.
+* **Result rows (Linhas de resultado):** Se a transformação filha processar dados e gerar linhas de saída, é aqui que você mapeia essas linhas para trazê-las de volta para o fluxo da transformação pai.
+
+---
+
+### ⚠️ Dicas de Ouro e Boas Práticas (Para a Apostila)
+
+1. **Cuidado com a Performance (O Perigo do Loop):** Acionar o motor do Pentaho para abrir e rodar uma transformação tem um "custo" de processamento (overhead). Se você tiver 1 milhão de linhas chegando neste step e não configurar a aba *Row grouping* para processar em lotes, o Pentaho vai abrir e fechar a transformação filha 1 milhão de vezes, o que deixará o processo incrivelmente lento. **Sempre tente agrupar os envios!**
+2. **Organização Modular:** Este step é perfeito para criar bibliotecas de transformações reutilizáveis. Exemplo: você pode criar uma transformação genérica chamada `enviar_email_alerta.ktr`. Sempre que qualquer outro projeto seu precisar mandar um e-mail, você não recria os steps, apenas usa o *Transformation executor* para chamar o arquivo filho passando o destinatário e a mensagem como parâmetros!
+
+---
+
+# Set variables
+
+![alt text](image-23.png)
+
+
+Excelente! Fechamos o ciclo perfeito sobre variáveis. Se no passo anterior vimos como *usar* parâmetros e variáveis, o step **Set variables** (Definir Variáveis) é exatamente onde nós **criamos** essas variáveis de forma dinâmica a partir dos dados do nosso fluxo!
+
+Este step pega o valor que está dentro de uma coluna (como uma data máxima ou um ID de lote) e o "eleva" para a memória do Pentaho, transformando-o em uma variável global (ex: `${DATA_MAXIMA}`) que poderá ser usada por outros processos.
+
+Vamos detalhar cada campo da tela da sua imagem para a apostila:
+
+### 1. Configurações Iniciais
+
+* **Step name:** O nome da etapa (ex: `Gravar Data Máxima`).
+* **Apply formatting:** Uma opção sutil, mas muito importante. Como as variáveis no Pentaho são sempre armazenadas como textos (Strings) na memória, se você estiver transformando uma Data ou um Número Decimal em variável, marcar essa caixa faz com que o Pentaho preserve a máscara de formatação original da coluna antes de guardá-la.
+
+### 2. A Grade de Criação (Field values)
+
+* **Field name (Nome do campo):** A coluna que está chegando do seu fluxo e que contém o valor que você quer guardar. (Você pode usar o botão *Obtem campos* para puxar a lista).
+* **Variable name (Nome da variável):** O nome de batismo da sua nova variável. É uma boa prática usar letras maiúsculas para destacar (ex: `DATA_HOJE`, `ID_LOTE`). Mais tarde, você vai invocá-la usando `${DATA_HOJE}`.
+* **Variable scope type (Tipo de escopo da variável):** **[MUITO IMPORTANTE]** Aqui você define até onde essa variável consegue "viajar" no seu projeto:
+* *Valid in the parent job (Válida no Job Pai):* É a opção mais usada. A variável sobe para o Job que executou esta transformação e fica disponível para as próximas transformações que esse Job rodar.
+* *Valid in the grand-parent job (Válida no Job Avô):* Sobe dois níveis na hierarquia de Jobs.
+* *Valid in the root job (Válida no Job Raiz):* Fica disponível para o Job principal (o mais alto de todos) e todos os seus filhos.
+* *Valid in the Java Virtual Machine (Válida na JVM):* Torna a variável global para todo o servidor Pentaho. *Cuidado:* use com extrema moderação, pois pode afetar outras automações rodando no mesmo servidor.
+
+
+* **Default value (Valor padrão):** Se, por acaso, a coluna que você escolheu chegar vazia (NULL), o Pentaho guardará esse valor de emergência na variável para não quebrar os próximos passos.
+
+---
+
+### ⚠️ Dicas de Ouro e Regras Fundamentais (Anotações Críticas para a Apostila)
+
+Este step tem duas regras de ouro que, se ignoradas, causam 99% dos erros de quem está aprendendo Pentaho:
+
+1. **A Regra de Uma Única Linha (The Single Row Rule):**
+O step *Set variables* **só deve receber 1 única linha de dados**. Se você ligar um *Table input* que traz 1.000 clientes a este step, o Pentaho vai reescrever a variável 1.000 vezes em frações de segundo, e o valor que vai sobrar na memória será apenas o do último cliente da lista.
+*Solução:* Sempre filtre ou agrupe os dados antes. Geralmente usamos um *Table input* com um `SELECT MAX(data) FROM tabela`, ou usamos um step *Sample rows* (Amostra de linhas) para garantir que apenas a linha número 1 chegue até aqui.
+2. **O Paradoxo do Tempo (Não use na mesma Transformação):**
+Uma variável criada pelo step *Set variables* **não pode ser usada dentro da mesma transformação (arquivo .ktr) onde foi criada**.
+O Pentaho inicializa todas as variáveis da transformação no exato momento em que ela começa a rodar. Portanto, se você tentar criar a variável num step e usá-la no step seguinte do mesmo fluxo, ela aparecerá como vazia.
+*A Arquitetura Correta:* Você cria uma Transformação 1 apenas para ler o dado e usar o *Set variables*. Em seguida, no seu Job (`.kjb`), você chama a Transformação 2, que agora poderá consumir essa variável livremente!
