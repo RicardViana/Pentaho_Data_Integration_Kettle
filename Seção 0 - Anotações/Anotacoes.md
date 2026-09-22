@@ -1411,3 +1411,82 @@ Este step é notoriamente rígido. Seus leitores precisam destacar estas três r
 
 
 3. **Para onde ir depois?** O passo seguinte quase sempre é ligar este step a um **Filter rows** (ou **Switch / Case**) para dividir o fluxo: as linhas com status `new` vão para um *Table output* (INSERT), as com status `changed` vão para um *Update*, e as `identical` vão para um step *Dummy* para serem ignoradas.
+
+---
+
+# Stream lookup
+
+![alt text](image-30.png)
+
+
+Chegamos oficialmente ao "PROCV" do Pentaho! Como conversamos no passo anterior, o **Stream lookup** é o step ideal para enriquecer o seu fluxo principal com dados de uma tabela de consulta secundária que caiba na memória.
+
+Vamos destrinchar a interface da sua imagem para incluir na apostila de forma bem didática:
+
+### 1. Origem da Consulta (Cabeçalho)
+
+* **Step name:** O nome descritivo da etapa.
+
+
+* **Lookup step:** Este é o passo mais crucial. Aqui você seleciona qual step do seu fluxo atua como a sua "Tabela Matriz" (a fonte dos dados que você quer consultar). *Atenção: A seta que liga esse step selecionado ao Stream lookup ganhará aquela bolinha azul de informação ("i") que vimos algumas aulas atrás, indicando que é uma leitura especial.*
+
+
+
+### 2. O Mapeamento da Chave (The key(s) to look up the value(s))
+
+Aqui você diz ao Pentaho como as tabelas conversam entre si.
+
+* **Field (Campo):** A coluna do seu fluxo **principal** que servirá de chave de busca (Ex: `id_cliente`).
+
+
+* **LookupField (Campo de Busca):** A coluna correspondente que está na sua tabela **matriz/secundária** (Ex: `cliente_id`).
+
+
+
+### 3. Os Dados de Retorno (Specify the fields to retrieve)
+
+Uma vez que o Pentaho achou o par correto (ex: Cliente ID 1 = Cliente ID 1), o que ele deve trazer de volta?
+
+* **Field:** O nome exato da coluna lá na tabela matriz que você quer puxar para o fluxo principal (Ex: `nome_cliente`).
+
+
+* **New name:** Um campo opcional onde você pode renomear essa coluna ao trazê-la (Ex: `Nome_Completo`).
+
+
+* **Default:** Um verdadeiro superpoder contra valores nulos! Se o Pentaho procurar a chave e não encontrar (o equivalente ao erro `#N/D` do Excel ou ao `NULL` de um `LEFT JOIN`), o que ele deve preencher no lugar? Você pode digitar um valor padrão aqui, como `0` ou `Não Cadastrado`.
+
+
+* **Type:** O tipo de dado da coluna que está sendo trazida.
+
+
+
+---
+
+### ⚠️ Dicas de Ouro e Regras de Otimização (Para a Apostila)
+
+1. **A Regra da Memória RAM (Preserve memory):** Note que a opção **"Preserve memory (costs CPU)"** vem marcada por padrão na sua tela. Como este step carrega a tabela matriz *inteira* na memória RAM para fazer as buscas na velocidade da luz, tabelas muito grandes podem travar a máquina. Essa caixinha comprime os dados na RAM, gastando um pouco mais de Processador (CPU) para poupar a memória da máquina.
+
+
+2. **Libertação do *Sort Rows*:** Deixe em negrito na sua apostila: **NÃO é necessário ordenar os dados antes do Stream lookup.** Como a tabela matriz vira um dicionário na memória (Hashtable), ele consegue caçar a informação instantaneamente, não importando se os dados de entrada estão totalmente embaralhados.
+3. **Tabelas de Lookup Gigantes:** Se a sua "Tabela Matriz" tiver milhões de linhas (ex: uma tabela de transações históricas) a ponto de não caber na RAM do seu servidor ou computador, você não deve usar este step. Nesses casos, volte para o bom e velho **Merge join**.
+
+
+### Exemplo Prático: Enriquecimento de Dados de Alunos com "Stream Lookup"
+
+![alt text](image-32.png)
+
+Neste cenário, temos um fluxo principal com dados de estudantes (vindo do step `Alunos`) e queremos acrescentar a informação do "Estado" de cada um, cruzando os dados com uma tabela secundária (vindo do step `Microsoft Excel input`).
+
+1. **A Ligação Visual de Consulta:** Repare no pequeno ícone azul com um "i" na seta que liga o ficheiro Excel ao step *Stream lookup*. Este símbolo confirma visualmente que o Pentaho está a tratar o Excel não como um fluxo normal de dados, mas sim como um dicionário de consulta carregado diretamente na memória RAM.
+
+
+2. **O Mapeamento da Chave (Como cruzar):** Na grelha superior, utilizamos a coluna `id` do fluxo principal para corresponder ao campo `id` do ficheiro Excel. O menu suspenso (dropdown) que abriu na primeira imagem demonstra uma excelente prática: o Pentaho lê o fluxo e lista automaticamente todas as colunas disponíveis (como `Cidade`, `nome`, `genero`, etc.), o que previne erros de digitação ao escolher a chave de busca.
+
+
+3. **O Valor de Retorno (O que extrair):** Na grelha inferior, instruímos o Pentaho sobre qual informação queremos capturar. Configurámos para que, sempre que houver uma correspondência de IDs, a ferramenta extraia a coluna `Estado` do ficheiro Excel e a anexe ao fluxo principal no formato de texto (`Type: String`).
+
+
+
+Com esta configuração, o fluxo que sai do *Stream lookup* terá todas as colunas originais dos Alunos, acrescidas agora da nova coluna "Estado" perfeitamente preenchida!
+
+Tem mais algum step ou configuração que queira documentar na sequência?
