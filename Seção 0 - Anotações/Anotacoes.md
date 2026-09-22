@@ -1306,8 +1306,6 @@ A tela deste step é a mais enxuta possível, possuindo apenas duas configuraç�
 * **INNER:** Retorna apenas as linhas onde a chave existir em **todos** os fluxos conectados ao mesmo tempo.
 * **FULL OUTER:** Retorna todas as linhas de todos os fluxos, preenchendo com nulos onde a informação não cruzar.
 
-
-
 ### 2. O Segredo da Tela Vazia: Como ele sabe o que cruzar?
 
 Como o *Multiway merge join* recebe vários fluxos, seria uma bagunça visual criar dezenas de grades para você mapear as colunas de cada um. O Pentaho resolveu isso com uma regra drástica de arquitetura:
@@ -1331,4 +1329,85 @@ Como ele não tem a inteligência de renomear colunas conflitantes automaticamen
 
 É um step poderoso que limpa o visual do seu projeto (evitando que você faça uma "escadinha" de vários *Merge joins* normais), mas exige uma preparação de dados impecável antes dele!
 
-Qual será o próximo step a entrar na nossa documentação?
+---
+
+# Append streams
+
+![alt text](image-28.png)
+
+O **Append streams** (Anexar fluxos) é o equivalente direto ao comando `UNION ALL` das bases de dados SQL, mas com uma garantia estrita de ordem cronológica de leitura. Ele serve para empilhar dados de duas origens diferentes numa única tabela final, lendo todas as linhas de uma origem primeiro e só depois começando a ler a segunda.
+
+Vamos detalhar a interface do ecrã para o seu documento:
+
+### 1. Configuração do Empilhamento
+
+* **Step name:** O nome da etapa (ex: `Juntar Vendas Físicas e Online`).
+
+
+* **Head hop (Fluxo Cabeçalho):** É aqui que seleciona o step cujos dados serão lidos primeiro. Todas as linhas que vierem desta origem ficarão na parte superior da tabela resultante.
+
+
+* **Tail hop (Fluxo Cauda):** É o step selecionado para ser lido em segundo lugar. Assim que o fluxo *Head* terminar de enviar dados, o Pentaho começa a ler este fluxo, anexando as suas linhas exatamente por baixo da última linha do *Head*.
+
+
+
+---
+
+### ⚠️ Dicas de Ouro e Regras Fundamentais (Para a Apostila)
+
+Este step é extremamente rápido, mas muito rigoroso. Destaque estas regras para evitar erros:
+
+1. **A Ditadura da Estrutura (Layout Idêntico):** Para que o Pentaho consiga empilhar os ficheiros, os dois fluxos (Head e Tail) têm de ser gémeos idênticos. Têm obrigatoriamente de possuir o **mesmo número de colunas, com os mesmos nomes, na mesma ordem exata e com os mesmos tipos de dados**. Se o fluxo *Head* enviar as colunas `[ID_Cliente, Nome]` e o fluxo *Tail* enviar `[Nome, ID_Cliente]`, o step irá gerar um erro fatal.
+* *Solução prática:* Coloque sempre um step *Select values* em cada um dos dois fluxos imediatamente antes do *Append streams* para alinhar e ordenar as colunas perfeitamente.
+
+
+2. **Limite de Duas Entradas:** Ao contrário de um step *Dummy*, que aceita dezenas de setas a chegar em simultâneo misturando tudo de forma aleatória, o *Append streams* aceita **exatamente dois fluxos**. Se precisar de empilhar três tabelas (A, B e C), terá de usar dois steps *Append streams* em cascata (um junta A+B, e o seguinte junta o Resultado+C).
+3. **Não exige ordenação prévia:** Diferente dos steps de *Join*, não precisa de utilizar um *Sort rows* antes deste step, o que faz com que a operação de empilhamento não consuma memória extra e seja processada à velocidade máxima do disco/rede.
+
+---
+
+# Merge rows (diff)
+
+![alt text](image-29.png)
+
+Chegamos exatamente ao step causador do erro anterior! O **Merge rows (diff)** é, sem dúvida, o "detetive" do Pentaho.
+
+Ele é projetado para comparar duas tabelas (uma antiga e uma nova) e gerar uma única tabela de saída adicionando uma coluna extra. Essa nova coluna avisa o status exato de cada linha, dizendo se ela é **nova** (`new`), se foi **excluída** (`deleted`), se sofreu **alteração** (`changed`) ou se continua **idêntica** (`identical`). É a ferramenta definitiva para fazer cargas incrementais (Delta) no banco de dados.
+
+Aqui está o detalhamento da tela da sua imagem para a apostila:
+
+### 1. Configuração de Origem e Flag (Cabeçalho)
+
+* **Step name:** O nome da etapa.
+
+
+* **Reference rows origin (Origem de Referência):** É a sua tabela "base" ou antiga. Geralmente é a tabela que já está no seu banco de dados e serve como espelho da realidade atual. Na sua imagem, ela vem do step `Sort rows`.
+
+
+* **Compare rows origin (Origem de Comparação):** É a sua tabela "nova". Pode ser o arquivo Excel ou CSV que você acabou de receber e quer comparar com a base. Na sua imagem, ela vem do step `Sort rows 2`.
+
+
+* **Flag fieldname (Nome do campo flag):** O nome da **nova coluna** que o Pentaho vai criar para registrar o status da comparação (na imagem está como `flagfield`).
+
+
+
+### 2. Mapeamento da Comparação (Grades Inferiores)
+
+* **Keys to match (Chaves para cruzar):** A coluna que serve como identificador único para que o Pentaho saiba quem ele está comparando. Na sua imagem, você definiu o campo `cod`. O Pentaho vai procurar o `cod = 1` na tabela velha e o `cod = 1` na tabela nova.
+
+
+* **Values to compare (Valores para comparar):** Uma vez que o Pentaho achou o mesmo `cod` nas duas tabelas, quais colunas ele deve olhar para saber se algo mudou?
+* *⚠️ Correção de Rota para o seu fluxo:* Na sua imagem, você colocou o próprio `cod` nesta grade de comparação. Como o `cod` é a chave, ele nunca muda. Aqui você deve colocar as colunas de atributos que podem sofrer alterações (ex: `nome`, `telefone`, `endereco`).
+
+
+---
+
+### ⚠️ Dicas de Ouro e Regras de Sobrevivência (Para a Apostila)
+
+Este step é notoriamente rígido. Seus leitores precisam destacar estas três regras para não travarem:
+
+1. **A Regra da Ordem e Estrutura Idêntica:** (O motivo do seu erro anterior). As duas tabelas que entram no *Merge rows (diff)* **precisam ser clones estruturais**. Elas devem ter o mesmo número de colunas, os nomes devem ser exatamente iguais, na mesma ordem e com os mesmos tipos de dados. Qualquer divergência nisso gera o erro *Invalid layout detected in input streams*.
+2. **A Regra Absoluta da Ordenação (Sort Rows):** Assim como os steps de Join, o *Merge rows (diff)* é cego se os dados não estiverem organizados. Ambas as tabelas de origem devem passar por um step *Sort rows* (como os listados na sua interface) ordenando de forma crescente usando a coluna definida em **Keys to match**.
+
+
+3. **Para onde ir depois?** O passo seguinte quase sempre é ligar este step a um **Filter rows** (ou **Switch / Case**) para dividir o fluxo: as linhas com status `new` vão para um *Table output* (INSERT), as com status `changed` vão para um *Update*, e as `identical` vão para um step *Dummy* para serem ignoradas.
