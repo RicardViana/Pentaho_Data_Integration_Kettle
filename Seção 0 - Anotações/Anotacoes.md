@@ -1281,3 +1281,54 @@ Esta é a seção mais importante deste step. Seus leitores precisam gravar isso
 
 
 2. **Conflito de Nomes de Colunas:** Se os fluxos A e B possuírem colunas com o mesmíssimo nome (por exemplo, ambos têm uma coluna chamada `data_atualizacao`), o Pentaho não vai quebrar. Para evitar que os dados se misturem, ele automaticamente renomeará a coluna que vier do *Second Step*, adicionando um sufixo (geralmente `_1`). Então o resultado final terá `data_atualizacao` (da esquerda) e `data_atualizacao_1` (da direita).
+
+---
+
+# Multiway merge join
+
+![alt text](image-27.png)
+
+
+Excelente evolução! Se o *Merge join* que vimos agora há pouco é um casamento fechado entre apenas dois fluxos, o **Multiway merge join** (Junção Múltipla) é uma verdadeira reunião de condomínio!
+
+Ele serve exatamente para o mesmo propósito (cruzar dados), mas com um superpoder: ele permite cruzar **três, quatro, cinco ou mais fluxos simultaneamente** em um único step.
+
+Ao olhar para a imagem que você enviou, a primeira coisa que assusta quem está aprendendo é: *"Cadê a grade para eu ligar as colunas?"*. É por isso que este step precisa de uma explicação especial na sua apostila.
+
+Vamos destrinchar o funcionamento dele:
+
+### 1. A Interface Minimalista
+
+A tela deste step é a mais enxuta possível, possuindo apenas duas configurações:
+
+* **Step name:** O nome da etapa (ex: `Cruzar Vendas, Clientes e Produtos`).
+* **Join Type:** O tipo de cruzamento. Diferente do join comum, o Multiway geralmente suporta apenas duas opções principais:
+* **INNER:** Retorna apenas as linhas onde a chave existir em **todos** os fluxos conectados ao mesmo tempo.
+* **FULL OUTER:** Retorna todas as linhas de todos os fluxos, preenchendo com nulos onde a informação não cruzar.
+
+
+
+### 2. O Segredo da Tela Vazia: Como ele sabe o que cruzar?
+
+Como o *Multiway merge join* recebe vários fluxos, seria uma bagunça visual criar dezenas de grades para você mapear as colunas de cada um. O Pentaho resolveu isso com uma regra drástica de arquitetura:
+
+**Ele cruza automaticamente todas as colunas que tiverem o nome EXATAMENTE IGUAL em todos os fluxos.**
+
+Se o Fluxo A, o Fluxo B e o Fluxo C tiverem uma coluna chamada `ID_Cliente`, o Pentaho usará essa coluna como chave do cruzamento. Simples assim.
+
+---
+
+### ⚠️ Dicas de Ouro e Regras de Sobrevivência (Para a Apostila)
+
+Este step exige muita disciplina. Se as regras abaixo não forem seguidas, ele falhará silenciosamente.
+
+1. **A Ditadura dos Nomes Iguais (Obrigatório):**
+Se o Fluxo A chama a chave de `id_cliente` e o Fluxo B chama de `cliente_id`, o *Multiway* **não vai funcionar**. Antes de ligar os fluxos neste step, você é obrigado a usar um step *Select values* (aba Meta-data) nos fluxos para renomear as colunas e deixá-las com o nome perfeitamente idêntico.
+2. **A Regra da Ordenação Absoluta (Sort Rows):**
+Assim como o seu irmão mais novo, o *Multiway* é cego para dados desordenados. **Todos** os fluxos (sejam 3, 4 ou 10) precisam passar por um step *Sort rows* (ordenando de forma crescente pela coluna chave) imediatamente antes de entrarem aqui.
+3. **Cuidado com as Colunas Duplicadas:**
+Como ele não tem a inteligência de renomear colunas conflitantes automaticamente (como o *Merge join* normal faz colocando um `_1`), se os seus fluxos tiverem outras colunas com nomes iguais que não são a chave (ex: todos têm uma coluna `data_cadastro`), o Pentaho vai dar um erro de colunas duplicadas. Use o *Select values* antes para renomear ou remover essas colunas de conflito.
+
+É um step poderoso que limpa o visual do seu projeto (evitando que você faça uma "escadinha" de vários *Merge joins* normais), mas exige uma preparação de dados impecável antes dele!
+
+Qual será o próximo step a entrar na nossa documentação?
