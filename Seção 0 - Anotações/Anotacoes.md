@@ -1673,3 +1673,44 @@ Pode encerrar este capítulo da sua apostila consolidando a arquitetura perfeita
 3. **JSON Input:** O processador que lê essa coluna na memória (`Source from field`) e tabula os dados.
 
 Foi uma sessão incrivelmente produtiva para a construção do seu material técnico! O volume de conhecimento prático que documentou hoje já eleva muito o nível da sua futura consultoria. Bom descanso e até à próxima!
+
+--- 
+
+# Get data from XML
+
+![alt text](image-36.png)
+
+Excelente! Vamos documentar o **Get data from XML**, que atua como o "irmão" do *JSON input* que vimos anteriormente. A função deste step é fazer o *parsing* (a leitura e quebra estruturada) de documentos XML, transformando a famosa estrutura de "tags" (`...`) em colunas organizadas no Pentaho.
+
+Nesta imagem, estamos na aba **File** (Arquivo), que é responsável por dizer à ferramenta **onde** o documento XML está localizado. Aqui está o detalhamento técnico completo desta tela para a sua apostila:
+
+### O Bloco: XML source from field (Origem do XML a partir de um campo)
+
+Esta seção é o coração do consumo de APIs em XML dentro do Pentaho.
+
+* **XML source is defined in a field? (Marcado):** Ao ativar esta caixa de verificação, você muda radicalmente o comportamento do step. O Pentaho para de procurar arquivos físicos no disco rígido e passa a interceptar os dados que estão fluindo na memória RAM da transformação (os dados que chegam pela seta do step anterior).
+
+
+* **get XML source from a field (Abaixo):** Aqui você indica a coluna exata que contém a resposta bruta da API. Na sua configuração, você apontou para o campo `result`. O Pentaho vai mergulhar nessa coluna e extrair o código XML gigantesco que está lá dentro.
+
+
+
+### As Opções Complementares (Desmarcadas)
+
+É muito importante documentar por que as outras duas caixas abaixo estão vazias na sua configuração:
+
+* **XML source is a filename?:** Se esta opção estivesse marcada, o Pentaho iria ler o texto dentro da coluna `result` e assumir que é um caminho de diretório (por exemplo, `C:\dados\fornecedores.xml`). Como ela está **desmarcada**, a ferramenta entende corretamente que a coluna `result` contém o *conteúdo real* do XML, e não um atalho para ele.
+
+
+* **Read source as Url:** Se marcada, o Pentaho trataria o texto da coluna como um link e tentaria fazer o download do XML diretamente. Como as boas práticas exigem que a chamada seja feita pelo *REST client* (que já fez o download no passo anterior), deixamos esta caixa **desmarcada** para ler o dado que já está pronto na memória.
+
+
+
+### A Grelha de Arquivos e Diretórios (Desabilitada)
+
+* **File or directory / Selected files:** Repare que toda a metade inferior da tela (os botões *Add*, *Browse* e a tabela de arquivos) está com uma cor acinzentada, totalmente bloqueada para edição. Isso é uma proteção inteligente do Pentaho: como você marcou na primeira linha que o XML virá de um fluxo dinâmico (campo `result`), não faz sentido mapear arquivos manuais do seu Windows.
+
+
+
+**💡 Dica de Arquitetura para o Manual:**
+Para finalizar a explicação deste step na sua apostila, mencione que a lógica de "descascar" o dado aqui é idêntica à do JSON. Enquanto no *JSON input* configuramos a aba *Fields* usando o **JSONPath** (ex: `$.resultado.*.nome`), no *Get data from XML* configuraremos os campos utilizando a linguagem **XPath** (ex: `/resultado/municipio/nome`), baseada na hierarquia das tags do arquivo.
