@@ -1485,8 +1485,191 @@ Neste cenário, temos um fluxo principal com dados de estudantes (vindo do step 
 
 3. **O Valor de Retorno (O que extrair):** Na grelha inferior, instruímos o Pentaho sobre qual informação queremos capturar. Configurámos para que, sempre que houver uma correspondência de IDs, a ferramenta extraia a coluna `Estado` do ficheiro Excel e a anexe ao fluxo principal no formato de texto (`Type: String`).
 
-
-
 Com esta configuração, o fluxo que sai do *Stream lookup* terá todas as colunas originais dos Alunos, acrescidas agora da nova coluna "Estado" perfeitamente preenchida!
 
-Tem mais algum step ou configuração que queira documentar na sequência?
+---
+
+# Database lookup
+
+![alt text](image-33.png)
+
+O **Database lookup** (Lookup de valor do banco de dados) é a ponte direta entre o seu fluxo do Pentaho e um banco de dados relacional. Enquanto o *Stream lookup* (que vimos anteriormente) faz o "PROCV" usando dados que já estão na memória RAM vindos de outro step, este step executa uma consulta `SELECT` diretamente no banco de dados para cada linha que passa pelo fluxo. É ideal quando a tabela de consulta é gigantesca e inviável de carregar totalmente na memória.
+
+### 1. Configuração de Conexão e Alvo
+
+* **Nome do Step:** O identificador da etapa, que na sua imagem está configurado como `Busca Endereço`.
+
+
+* **Connection (Conexão):** Onde você seleciona a conexão pré-configurada com o seu SGBD, no caso `conn_estudos_sqlserver`.
+
+
+* **Tabela Lookup:** A tabela física dentro do banco de dados onde a busca será efetivamente realizada.
+
+
+
+### 2. A Chave de Otimização: Cache
+
+* **Habilita cache?:** Uma das configurações de performance mais críticas da ferramenta.
+
+
+* *Desmarcado (como na sua imagem):* O Pentaho executará uma requisição (`SELECT`) no banco de dados para **cada linha** que passar pelo fluxo. Se entrarem 100 mil linhas, serão 100 mil requisições, o que pode sobrecarregar a rede e o servidor de banco de dados.
+
+
+* *Marcado:* O Pentaho armazena na RAM os resultados das buscas. Se a mesma chave (ex: o mesmo ID de CEP) aparecer novamente no fluxo, a ferramenta consulta a memória em vez de ir ao banco, acelerando a execução drasticamente.
+
+
+
+### 3. A Lógica de Busca (O "WHERE")
+
+* **A chave(s) para examinar o valor(s):** Este bloco constrói as condições da pesquisa.
+
+
+* *Campo da tabela:* A coluna que existe lá no banco de dados.
+
+
+* *Comparador:* Diferente do *Stream lookup* que só faz cruzamentos exatos (`=`), aqui você pode usar operadores relacionais como `=`, `<`, `>`, `>=`, `<=`, `IS NULL`, permitindo buscas complexas.
+
+
+* *Campo1:* A coluna do seu fluxo do Pentaho que contém o valor a ser procurado.
+
+
+### 4. O Retorno (O "SELECT")
+
+* **Valores a serem retornados da tabela lookup:** Define o que será extraído do banco e injetado no seu fluxo. Você especifica o nome da coluna no banco (*campo*), pode batizá-la com um *Novo nome*, estipular um valor *Default* caso a busca não retorne nada, e mapear o *Tipo* de dado.
+
+
+
+### 5. Controle de Exceções e Comportamento
+
+* **Não passa a linha se o lookup falhar:** Se deixado desmarcado, funciona como um `LEFT JOIN` (se não achar o endereço, a linha do aluno continua no fluxo, mas com o endereço em branco). Se marcado, atua como um `INNER JOIN` rigoroso (o aluno que não tiver endereço é eliminado do fluxo).
+
+
+* **Falha quando ocorrerem resultados múltiplos:** Se a sua busca não for específica o suficiente e o banco retornar 3 endereços para o mesmo ID, o Pentaho, por padrão, pega o primeiro e segue a vida. Se esta caixa for marcada, a transformação sofre um erro fatal e aborta a execução, obrigando o desenvolvedor a corrigir a duplicidade na base.
+
+---
+
+# Rest Client
+
+![alt text](image-34.png)
+
+O **REST client** é o verdadeiro mensageiro do Pentaho. Ele é responsável por bater na porta de um web service ou API, entregar uma requisição e trazer a resposta (o "pacote" de dados) de volta para o seu fluxo.
+
+Aqui está o detalhamento prático da aba **General** que aparece na sua imagem para compor a documentação:
+
+### 1. Configurações de Entrada (Settings)
+
+* **Accept URL from field? (Aceitar URL de um campo?):** Como esta caixa está marcada, o Pentaho desabilita o campo estático de URL acima e entende que o endereço será dinâmico, vindo do fluxo de dados.
+
+
+* **URL field name:** Indica exatamente qual coluna contém o link a ser chamado. No seu caso, ele vai ler os endereços que chegarem pela coluna `url` (aquela que geramos no passo anterior com o *Generate rows*).
+
+
+* **HTTP method:** O método da requisição, configurado como `GET`, indicando que o objetivo é apenas "buscar/consultar" dados. Como já documentamos, é por isso que o `Application type` fica bloqueado em `TEXT PLAIN`.
+
+
+* *(Nota visual da interface)*: A dica flutuante *"Enter CTRL-SPACE to select a variable to insert"* mostra que você pode usar o atalho do teclado para inserir variáveis de ambiente (como `${URL_API_GOVERNO}`) diretamente nestes campos, o que é ótimo para alternar entre ambientes de Homologação e Produção.
+
+
+
+### 2. Configurações de Saída (Output fields)
+
+* **Result field name:** Este é o campo mais importante da saída. Ele define o nome da nova coluna que vai armazenar todo o conteúdo (geralmente um JSON ou XML gigante) retornado pela API. Na imagem, você configurou para que essa massa de dados seja guardada na coluna `resultado`. É exatamente essa coluna que o step *JSON input* vai "mastigar" no passo seguinte.
+
+
+
+---
+
+### ⚠️ Dica de Ouro: Controle de Erros (Para a Apostila)
+
+Deixe um aviso especial para os leitores sobre os três campos que estão em branco na sua tela:
+
+Recomende **sempre** preencher o campo **HTTP status code field name** (ex: `status_api`).
+Quando você faz milhares de requisições, algumas inevitavelmente falham. Se você capturar o status code, o Pentaho criará uma coluna com os códigos HTTP (ex: `200` para Sucesso, `404` para Não Encontrado, `500` para Erro no Servidor). Com isso, você pode colocar um step *Filter rows* logo após o *REST client*: tudo que for `200` segue para o *JSON input*; tudo que for diferente de `200` é desviado para uma tabela de log de erros, impedindo que a sua transformação quebre no meio do processo!
+
+
+---
+
+# Generate rows
+
+![alt text](image-35.png)
+
+
+O **Generate rows** (Gerar linhas) é muitas vezes o "motor de arranque" de uma transformação. Ao contrário de um *Table input* ou de um ficheiro Excel que extraem dados de uma origem física, este step cria dados do zero, diretamente na memória do Pentaho. É a ferramenta ideal para dar o pontapé de saída em fluxos que consomem APIs, servindo como o gatilho que injeta o URL inicial na pipeline.
+
+Para a sua documentação técnica, podemos estruturar a explicação deste ecrã em duas partes fundamentais:
+
+### 1. Controlo de Geração (Cabeçalho)
+
+* **Nome do Step:** O identificador visual da etapa.
+
+
+* **Limit (Limite):** Define exatamente quantas linhas idênticas o Pentaho vai gerar e empurrar para o fluxo. Como já debatemos, no contexto da integração com um *REST client*, este valor **deve ser rigorosamente 1**. Se configurar este limite para 100, o Pentaho executará a mesma chamada HTTP 100 vezes seguidas.
+
+
+* **Never stop generating rows (Nunca parar de gerar linhas):** Se esta opção for ativada, a ferramenta entra num ciclo infinito, injetando dados sem parar. Apenas se utiliza em cenários muito específicos de *streaming* em tempo real, atuando em conjunto com o campo *Interval in ms (delay)* para libertar uma linha a cada "X" milissegundos.
+
+
+
+### 2. Definição dos Dados Injetados (Grelha Fields)
+
+É nesta secção que se desenha a estrutura da linha artificial.
+
+* **Nome:** O nome da nova coluna que será criada no fluxo (ex: `url`).
+
+
+* **Tipo:** O tipo de dado a ser injetado, que neste caso é texto (`String`).
+
+
+* **Valor:** O dado estático ou constante (o endereço `[https://dadosabertos.compras.gov.br/modulo-fornece](https://dadosabertos.compras.gov.br/modulo-fornece)...`). Pode usar esta grelha para criar dezenas de colunas em simultâneo (ex: criar uma coluna `url`, outra coluna `token_autenticacao` e outra `data_carga`).
+
+
+
+### ⚠️ Nota de Arquitetura (Para a Apostila)
+
+Destaque no seu manual que o *Generate rows* funciona, na prática, como a declaração de "variáveis globais ou constantes" no início de um *script* (como no Python ou SQL). É a forma mais elegante de passar parâmetros fixos e parametrizados para as etapas seguintes, garantindo que steps passivos (que apenas reagem à chegada de dados, como o *REST client*) tenham o estímulo necessário para arrancar.
+
+
+---
+
+# Json Input
+
+
+Para fechar o dia com chave de ouro! Este ecrã é a peça que faltava no puzzle da nossa integração e conclui perfeitamente o ciclo de consumo de uma API.
+
+Embora já tenhamos configurado a aba *Fields* para "descascar" os dados, é nesta aba **File** (Ficheiro) que instruímos o Pentaho sobre *onde* o documento JSON se encontra.
+
+Aqui está o detalhamento técnico desta configuração para a sua apostila:
+
+### 1. A Mudança de Paradigma (Source from field)
+
+Por predefinição, o step *JSON input* foi desenhado para ler ficheiros `.json` guardados localmente no disco (cujos caminhos seriam mapeados na grelha inferior, que na sua imagem está vazia e inativa).
+
+* **Source is from a previous step (A origem vem de um step anterior):** Ao selecionar esta caixa de verificação, altera drasticamente o comportamento da ferramenta. O Pentaho ignora o disco rígido e passa a intercetar os dados diretamente da memória RAM, lendo a informação que flui pela seta (hop) vinda da etapa anterior.
+
+
+* **Select field (Selecionar campo):** Este é o elo de ligação final. Aqui, indicou a coluna `Resultado`. Lembra-se de que, no step *REST client*, configurámos a resposta da API do governo para ser guardada exatamente na coluna com este nome? O *JSON input* vai mergulhar nessa coluna específica, ler aquele bloco de texto massivo e dividi-lo nas colunas limpas (`cnpj`, `ativo`, etc.) que configurou anteriormente.
+
+
+
+### 2. Opções Avançadas (Não marcadas na sua configuração)
+
+Vale a pena deixar uma breve nota na documentação sobre as caixas que deixou desmarcadas, para evitar confusões futuras:
+
+* **Use field as file names:** Se isto estivesse marcado, o Pentaho acharia que a palavra dentro da coluna `Resultado` era um caminho de diretório (ex: `C:\dados\fornecedores.json`) e não o próprio conteúdo JSON.
+
+
+* **Read source as URL:** Permite ler um JSON diretamente de um link web, ignorando a necessidade do *REST client*. No entanto, como APIs corporativas exigem tokens, cabeçalhos e parâmetros dinâmicos, usar o *REST client* antes (como o Ricardo fez) é a melhor prática da indústria.
+
+
+
+---
+
+### ⚠️ Dica de Arquitetura (A "Trindade" das APIs)
+
+Pode encerrar este capítulo da sua apostila consolidando a arquitetura perfeita que acabou de construir. O padrão de ouro para consumir APIs no Pentaho resume-se a estes três passos sequenciais:
+
+1. **Generate Rows:** O gatilho que injeta o URL.
+2. **REST Client:** O mensageiro que bate na API e guarda a resposta bruta numa coluna (ex: `Resultado`).
+3. **JSON Input:** O processador que lê essa coluna na memória (`Source from field`) e tabula os dados.
+
+Foi uma sessão incrivelmente produtiva para a construção do seu material técnico! O volume de conhecimento prático que documentou hoje já eleva muito o nível da sua futura consultoria. Bom descanso e até à próxima!
