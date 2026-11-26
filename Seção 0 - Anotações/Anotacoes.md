@@ -1714,3 +1714,50 @@ Esta seção é o coração do consumo de APIs em XML dentro do Pentaho.
 
 **💡 Dica de Arquitetura para o Manual:**
 Para finalizar a explicação deste step na sua apostila, mencione que a lógica de "descascar" o dado aqui é idêntica à do JSON. Enquanto no *JSON input* configuramos a aba *Fields* usando o **JSONPath** (ex: `$.resultado.*.nome`), no *Get data from XML* configuraremos os campos utilizando a linguagem **XPath** (ex: `/resultado/municipio/nome`), baseada na hierarquia das tags do arquivo.
+
+---
+
+# Combination lookup/update 
+
+![alt text](image-37.png)
+
+O **Combinação lookup / update** (*Combination lookup/update*) é um step clássico de modelagem de Data Warehouse, usado para popular tabelas de **Dimensão** (como dimensões simples ou *Junk Dimensions*) e gerenciar **Chaves Substitutas (*Surrogate Keys* / SK)**.
+
+A lógica dele é direta: para cada linha que chega no fluxo, ele verifica se aquela combinação exata de valores já existe na tabela de destino. Se existir, retorna a chave técnica (`SK`) correspondente para o fluxo; se não existir, insere o novo registro, gera uma nova `SK` e a devolve ao fluxo.
+
+### 1. Conexão, Destino e Performance
+
+* **Nome do Step / Tabela de destino:** Identifica a etapa e a tabela física no banco, ambas configuradas como `Fornecedor`.
+* **Connection:** A conexão ativa com o banco de dados (`conn_variados_sqlserver`).
+* **Confirma tamanho (Commit size):** Definido como `100`, instrui o Pentaho a consolidar (*commit*) as gravações no banco a cada 100 registros inseridos, equilibrando segurança e performance.
+* **Tamanho do Cache (`9999`) e Pre-load the cache?:** Armazena em memória RAM até 9.999 combinações já consultadas para evitar bater no banco repetidamente. Se o *Pre-load* for marcado, ele carrega a tabela inteira na memória antes de iniciar o processamento.
+
+### 2. Campos Chave (A Combinação)
+
+* **Campo Dimensão / Campo no fluxo:** Mapeia as colunas que definem a unicidade do registro. Na sua configuração, a combinação avaliada é `IDFORNECEDOR` + `NOME`.
+* **Comportamento prático:** Se o fornecedor de ID `10` com nome `Empresa A` já estiver na tabela, o step apenas resgata a `SK` dele. Porém, se o mesmo ID `10` chegar com o nome alterado para `Empresa A LTDA`, o step entende que é uma **nova combinação** e insere uma nova linha com uma nova `SK`.
+
+### 3. Geração da Chave Técnica (Surrogate Key)
+
+* **Campo chave técnica:** Define o nome da coluna que receberá o identificador único no Data Warehouse (`SK_FORNECEDOR`).
+* **Criação de chave técnica:** Está selecionado **Usa tabela máxima + 1**, o que faz o Pentaho consultar o maior valor atual de `SK_FORNECEDOR` na tabela e somar 1 para cada novo registro. As outras opções permitem delegar essa contagem ao próprio banco via *Sequence* (**Usa sequência**) ou colunas `IDENTITY` (**Usa o campo de auto incremento**).
+
+### 4. Opções Extras e Utilitários
+
+* **Remove campos lookup ?:** Desmarcado na sua tela. Se marcado, remove os campos originais (`IDFORNECEDOR` e `NOME`) do fluxo de saída, deixando apenas a `SK_FORNECEDOR` — muito útil quando o próximo passo é gravar em uma Tabela Fato.
+* **Usa hashcode?:** Opcional para otimizar buscas em tabelas com muitas colunas chave, gerando um código numérico de resumo (*hash*) para acelerar a comparação no banco.
+* **Botão SQL:** Atalho prático no rodapé que gera automaticamente o comando `CREATE TABLE` ou `ALTER TABLE` no SQL Server caso a tabela `Fornecedor` ainda não exista ou precise de ajustes estruturais.
+
+O campo **Date of last update field (optional)** serve para registrar automaticamente a data e a hora em que um novo registro foi gravado na tabela de dimensão.
+
+* **Como configurar:** Você digita o nome de uma coluna do tipo data/hora (ex: `DT_ATUALIZACAO` ou `DATA_CARGA`) que já exista na tabela de destino — ou que será criada ao clicar no botão **SQL**.
+
+* **O que o Pentaho faz:** Toda vez que uma nova combinação de chaves (no seu caso, `IDFORNECEDOR` + `NOME`) não for encontrada na tabela e precisar ser inserida, o step preenche essa coluna automaticamente com o carimbo de data/hora (*timestamp*) do início da execução da transformação.
+
+* **Atenção ao nome do campo:** Embora o rótulo diga *"last update"* (última atualização), o step **Combinação lookup / update** apenas faz `INSERT` de novas combinações e não sobrescreve linhas antigas. Na prática, esse campo funciona como uma **data de criação/inserção** do registro na dimensão.
+
+---
+
+### ⚠️ Dica de Arquitetura (Para a Apostila)
+
+Diferencie este step do **Dimension lookup/update**: o *Combinação lookup/update* é focado em **inserir novas combinações e devolver SKs** de forma rápida (não faz `UPDATE` em atributos descritivos nem controla datas de vigência `date_from`/`date_to`). Se o projeto exigir rastreamento histórico completo de alterações (SCD Tipo 2), o step indicado passa a ser o *Dimension lookup/update*.
